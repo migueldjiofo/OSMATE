@@ -21,8 +21,8 @@ class AgentPlan(BaseModel):
     spatial_filter: SpatialFilter
     limit: int = Field(ge=1, le=500)
     confidence_score: float = Field(ge=0.0, le=1.0)
-    unmatched_terms: list[str] = []
-    warnings: list[str] = []
+    unmatched_terms: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     summary_de: str
     planner_type: Literal["rule_based"] = "rule_based"
     llm_fallback_recommended: bool = False
