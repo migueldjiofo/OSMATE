@@ -3,6 +3,7 @@
 import httpx
 
 from app.core.config import get_settings
+from app.services.cache_service import get_cached_json, make_cache_key, set_cached_json
 
 
 class OverpassClientError(RuntimeError):
@@ -29,6 +30,20 @@ async def execute_overpass_query(
     """Sendet eine Overpass-QL-Abfrage an die Overpass-API."""
     settings = get_settings()
     target_url = overpass_url or settings.overpass_url
+
+    cache_key = make_cache_key(
+        "overpass",
+        {
+            "url": target_url,
+            "query": overpass_ql,
+        },
+    )
+
+    if settings.cache_enabled:
+        cached_payload = get_cached_json(cache_key)
+
+        if isinstance(cached_payload, dict):
+            return cached_payload
 
     timeout = httpx.Timeout(30.0, connect=10.0)
     headers = {
@@ -95,6 +110,13 @@ async def execute_overpass_query(
         if not isinstance(elements, list):
             raise OverpassClientError(
                 "Die Overpass-Antwort enthaelt keine gueltige Elementliste."
+            )
+
+        if settings.cache_enabled:
+            set_cached_json(
+                cache_key=cache_key,
+                payload=payload,
+                ttl_seconds=settings.cache_ttl_seconds,
             )
 
         return payload

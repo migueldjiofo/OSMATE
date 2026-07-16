@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
+from app.services.cache_service import get_cached_json, make_cache_key, set_cached_json
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,40 @@ class NominatimNoResultError(ValueError):
     """Fehler, wenn Nominatim keinen passenden Ort findet."""
 
 
+def _parse_geocoding_payload(payload: Any, place_name: str) -> GeocodingResult:
+    """Wertet eine Nominatim-Antwort aus und extrahiert Koordinaten."""
+    if not isinstance(payload, list):
+        raise NominatimClientError(
+            "Die Nominatim-Antwort hat ein unerwartetes Format."
+        )
+
+    if len(payload) == 0:
+        raise NominatimNoResultError(
+            f"Der Ort '{place_name}' konnte nicht gefunden werden."
+        )
+
+    first_result = payload[0]
+
+    if not isinstance(first_result, dict):
+        raise NominatimClientError(
+            "Das erste Nominatim-Ergebnis hat ein unerwartetes Format."
+        )
+
+    try:
+        lat = float(first_result["lat"])
+        lon = float(first_result["lon"])
+
+    except (KeyError, TypeError, ValueError) as exc:
+        raise NominatimClientError(
+            "Das Nominatim-Ergebnis enthaelt keine gueltigen Koordinaten."
+        ) from exc
+
+    return GeocodingResult(
+        lat=lat,
+        lon=lon,
+    )
+
+
 async def geocode_place_name(
     place_name: str,
     client: httpx.AsyncClient | None = None,
@@ -30,6 +65,20 @@ async def geocode_place_name(
     """Geokodiert einen Ortsnamen ueber die Nominatim-API."""
     settings = get_settings()
     target_url = nominatim_url or settings.nominatim_url
+
+    cache_key = make_cache_key(
+        "nominatim",
+        {
+            "url": target_url,
+            "place_name": place_name,
+        },
+    )
+
+    if settings.cache_enabled:
+        cached_payload = get_cached_json(cache_key)
+
+        if cached_payload is not None:
+            return _parse_geocoding_payload(cached_payload, place_name)
 
     timeout = httpx.Timeout(20.0, connect=10.0)
     headers = {
@@ -85,36 +134,16 @@ async def geocode_place_name(
                 "Die Nominatim-API hat keine gueltige JSON-Antwort geliefert."
             ) from exc
 
-        if not isinstance(payload, list):
-            raise NominatimClientError(
-                "Die Nominatim-Antwort hat ein unerwartetes Format."
+        result = _parse_geocoding_payload(payload, place_name)
+
+        if settings.cache_enabled:
+            set_cached_json(
+                cache_key=cache_key,
+                payload=payload,
+                ttl_seconds=settings.cache_ttl_seconds,
             )
 
-        if len(payload) == 0:
-            raise NominatimNoResultError(
-                f"Der Ort '{place_name}' konnte nicht gefunden werden."
-            )
-
-        first_result = payload[0]
-
-        if not isinstance(first_result, dict):
-            raise NominatimClientError(
-                "Das erste Nominatim-Ergebnis hat ein unerwartetes Format."
-            )
-
-        try:
-            lat = float(first_result["lat"])
-            lon = float(first_result["lon"])
-
-        except (KeyError, TypeError, ValueError) as exc:
-            raise NominatimClientError(
-                "Das Nominatim-Ergebnis enthaelt keine gueltigen Koordinaten."
-            ) from exc
-
-        return GeocodingResult(
-            lat=lat,
-            lon=lon,
-        )
+        return result
 
     finally:
         if should_close_client:

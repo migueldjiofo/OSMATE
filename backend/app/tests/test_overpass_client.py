@@ -26,7 +26,7 @@ def test_execute_overpass_query_with_mocked_success_response() -> None:
             return await execute_overpass_query(
                 "[out:json];node(1);out;",
                 client=client,
-                overpass_url="https://overpass.test/api/interpreter",
+                overpass_url="https://overpass.test/api/interpreter-success",
             )
 
     payload = asyncio.run(run_test())
@@ -44,9 +44,9 @@ def test_execute_overpass_query_handles_rate_limit_response() -> None:
 
         async with httpx.AsyncClient(transport=transport) as client:
             await execute_overpass_query(
-                "[out:json];node(1);out;",
+                "[out:json];node(2);out;",
                 client=client,
-                overpass_url="https://overpass.test/api/interpreter",
+                overpass_url="https://overpass.test/api/interpreter-rate-limit",
             )
 
     with pytest.raises(OverpassRateLimitError):
