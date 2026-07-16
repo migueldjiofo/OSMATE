@@ -1,0 +1,124 @@
+﻿import re
+
+from app.agent.tag_catalog import (
+    detect_optional_tags,
+    extract_unmatched_terms,
+    find_category,
+    normalize_text,
+)
+from app.agent.validator import validate_agent_plan
+from app.core.config import get_settings
+from app.schemas.agent_plan import AgentPlan, SpatialFilter
+from app.schemas.search_request import SearchRequest
+
+
+class PlanningError(ValueError):
+    """Fehler bei der Erstellung eines Agentenplans."""
+
+
+def _extract_radius_m(query: str, fallback_radius_m: int) -> int:
+    """Extrahiert einen Suchradius aus der Anfrage oder nutzt den Standardwert."""
+    normalized_query = normalize_text(query)
+
+    kilometer_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(km|kilometer)", normalized_query)
+    if kilometer_match:
+        value = float(kilometer_match.group(1).replace(",", "."))
+        return int(value * 1000)
+
+    meter_match = re.search(r"(\d+)\s*(m|meter|metern)", normalized_query)
+    if meter_match:
+        return int(meter_match.group(1))
+
+    return fallback_radius_m
+
+
+def _calculate_confidence_score(
+    category_found: bool,
+    unmatched_terms: list[str],
+    warnings: list[str],
+) -> float:
+    """Berechnet eine einfache Vertrauensbewertung fuer den regelbasierten Plan."""
+    if not category_found:
+        return 0.0
+
+    score = 0.9
+    score -= min(len(unmatched_terms) * 0.08, 0.3)
+    score -= min(len(warnings) * 0.12, 0.3)
+
+    return max(round(score, 2), 0.1)
+
+
+def create_agent_plan(request_data: SearchRequest) -> AgentPlan:
+    """Erstellt einen strukturierten Suchplan aus einer natuerlichen Anfrage."""
+    settings = get_settings()
+
+    if request_data.lat is None or request_data.lon is None:
+        raise PlanningError(
+            "Fuer den regelbasierten Agenten muessen Koordinaten vorhanden sein."
+        )
+
+    category, category_terms = find_category(request_data.query)
+
+    if category is None:
+        raise PlanningError(
+            "Die Anfrage konnte keiner unterstuetzten OSM-Kategorie zugeordnet werden."
+        )
+
+    optional_tags, optional_terms, warnings, unsupported_terms = detect_optional_tags(
+        request_data.query
+    )
+
+    matched_terms = set()
+    matched_terms.update(category_terms)
+    matched_terms.update(optional_terms)
+
+    unmatched_terms = extract_unmatched_terms(request_data.query, matched_terms)
+
+    for unsupported_term in unsupported_terms:
+        if unsupported_term not in unmatched_terms:
+            unmatched_terms.append(unsupported_term)
+
+    radius_m = request_data.radius_m or _extract_radius_m(
+        request_data.query,
+        settings.default_search_radius_m,
+    )
+
+    limit = request_data.limit or settings.default_result_limit
+
+    osm_tags = dict(category.tags)
+    osm_tags.update(optional_tags)
+
+    confidence_score = _calculate_confidence_score(
+        category_found=True,
+        unmatched_terms=unmatched_terms,
+        warnings=warnings,
+    )
+
+    llm_fallback_recommended = confidence_score < 0.75 or len(warnings) > 0
+
+    plan = AgentPlan(
+        category=category.key,
+        osm_tags=osm_tags,
+        spatial_filter=SpatialFilter(
+            radius_m=radius_m,
+            lat=request_data.lat,
+            lon=request_data.lon,
+        ),
+        limit=limit,
+        confidence_score=confidence_score,
+        unmatched_terms=unmatched_terms,
+        warnings=warnings,
+        summary_de=(
+            f"Regelbasierte Suche nach {category.key} "
+            f"im Umkreis von {radius_m} Metern."
+        ),
+        llm_fallback_recommended=llm_fallback_recommended,
+    )
+
+    validate_agent_plan(
+        plan=plan,
+        max_radius_m=settings.max_search_radius_m,
+        max_limit=settings.max_result_limit,
+    )
+
+    return plan
