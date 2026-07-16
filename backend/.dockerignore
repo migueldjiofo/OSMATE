@@ -1,0 +1,30 @@
+﻿# Python-Umgebungen
+.venv/
+venv/
+
+# Python-Cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Lokale Umgebungsdateien
+.env
+.env.*
+!.env.example
+
+# Lokale Cache-Daten
+data/cache/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+logs/
+
+# Temporäre Dateien
+tmp/
+temp/
+*.tmp
