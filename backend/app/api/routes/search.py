@@ -9,6 +9,7 @@ from app.schemas.overpass_query import OverpassQueryResponse
 from app.schemas.search_request import SearchRequest
 from app.schemas.search_response import SearchResponse
 from app.services.geojson_service import convert_overpass_to_geojson
+from app.services.nominatim_client import NominatimClientError
 from app.services.overpass_builder import OverpassBuildError, build_overpass_query
 from app.services.overpass_client import (
     OverpassClientError,
@@ -17,6 +18,7 @@ from app.services.overpass_client import (
     OverpassTimeoutError,
     execute_overpass_query,
 )
+from app.services.spatial_resolver import resolve_spatial_context
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -33,7 +35,7 @@ PLANNING_ERROR_RESPONSES = {
 SERVICE_ERROR_RESPONSES = {
     status.HTTP_502_BAD_GATEWAY: {
         "model": ErrorResponse,
-        "description": "Die externe Overpass-API konnte nicht erfolgreich genutzt werden.",
+        "description": "Eine externe API konnte nicht erfolgreich genutzt werden.",
     }
 }
 
@@ -53,9 +55,9 @@ def _planning_error_response(exc: Exception) -> JSONResponse:
     )
 
 
-def _overpass_error_response(exc: OverpassClientError) -> JSONResponse:
-    """Erstellt eine standardisierte Fehlerantwort fuer Overpass-Fehler."""
-    code = "overpass_error"
+def _service_error_response(exc: OverpassClientError | NominatimClientError) -> JSONResponse:
+    """Erstellt eine standardisierte Fehlerantwort fuer externe Dienste."""
+    code = "external_service_error"
 
     if isinstance(exc, OverpassTimeoutError):
         code = "overpass_timeout"
@@ -65,6 +67,12 @@ def _overpass_error_response(exc: OverpassClientError) -> JSONResponse:
 
     elif isinstance(exc, OverpassServerError):
         code = "overpass_server_error"
+
+    elif isinstance(exc, OverpassClientError):
+        code = "overpass_error"
+
+    elif isinstance(exc, NominatimClientError):
+        code = "geocoding_error"
 
     error = ErrorResponse(
         code=code,
@@ -83,9 +91,10 @@ def _overpass_error_response(exc: OverpassClientError) -> JSONResponse:
     responses=SEARCH_EXECUTION_RESPONSES,
 )
 async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONResponse:
-    """Fuehrt eine vollstaendige OSMATE-Suche ueber die Overpass-API aus."""
+    """Fuehrt eine vollstaendige OSMATE-Suche ueber externe OSM-Dienste aus."""
     try:
-        agent_plan = create_agent_plan(request_data)
+        resolved_request = await resolve_spatial_context(request_data)
+        agent_plan = create_agent_plan(resolved_request)
         overpass_ql = build_overpass_query(agent_plan)
         overpass_payload = await execute_overpass_query(overpass_ql)
         geojson = convert_overpass_to_geojson(overpass_payload)
@@ -104,35 +113,40 @@ async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONRe
     except (PlanningError, PlanValidationError, OverpassBuildError) as exc:
         return _planning_error_response(exc)
 
-    except OverpassClientError as exc:
-        return _overpass_error_response(exc)
+    except (OverpassClientError, NominatimClientError) as exc:
+        return _service_error_response(exc)
 
 
 @router.post(
     "/plan",
     response_model=AgentPlan,
-    responses=PLANNING_ERROR_RESPONSES,
+    responses=SEARCH_EXECUTION_RESPONSES,
 )
 async def create_search_plan(request_data: SearchRequest) -> AgentPlan | JSONResponse:
     """Erstellt einen validierten Agentenplan aus einer natuerlichen Suchanfrage."""
     try:
-        return create_agent_plan(request_data)
+        resolved_request = await resolve_spatial_context(request_data)
+        return create_agent_plan(resolved_request)
 
     except (PlanningError, PlanValidationError) as exc:
         return _planning_error_response(exc)
+
+    except NominatimClientError as exc:
+        return _service_error_response(exc)
 
 
 @router.post(
     "/overpass-query",
     response_model=OverpassQueryResponse,
-    responses=PLANNING_ERROR_RESPONSES,
+    responses=SEARCH_EXECUTION_RESPONSES,
 )
 async def create_search_overpass_query(
     request_data: SearchRequest,
 ) -> OverpassQueryResponse | JSONResponse:
     """Erstellt einen Agentenplan und leitet daraus eine Overpass-QL-Abfrage ab."""
     try:
-        agent_plan = create_agent_plan(request_data)
+        resolved_request = await resolve_spatial_context(request_data)
+        agent_plan = create_agent_plan(resolved_request)
         overpass_ql = build_overpass_query(agent_plan)
 
         return OverpassQueryResponse(
@@ -142,3 +156,6 @@ async def create_search_overpass_query(
 
     except (PlanningError, PlanValidationError, OverpassBuildError) as exc:
         return _planning_error_response(exc)
+
+    except NominatimClientError as exc:
+        return _service_error_response(exc)
