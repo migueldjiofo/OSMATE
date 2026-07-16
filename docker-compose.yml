@@ -1,0 +1,20 @@
+﻿services:
+  osmate-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: osmate-backend
+    env_file:
+      - ./backend/.env.example
+    environment:
+      BACKEND_HOST: "0.0.0.0"
+      BACKEND_PORT: "8000"
+      CACHE_DATABASE_PATH: "/app/data/cache/osmate_cache.sqlite3"
+    ports:
+      - "8000:8000"
+    volumes:
+      - osmate-backend-cache:/app/data/cache
+    restart: unless-stopped
+
+volumes:
+  osmate-backend-cache:
