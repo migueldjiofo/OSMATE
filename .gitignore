@@ -1,0 +1,67 @@
+﻿# Betriebssystem-Dateien
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE-Dateien
+# Fichiers IDE
+.idea/
+.vscode/
+*.iml
+
+# Lokale Umgebungsvariablen und Geheimnisse
+# Variables locales et secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+google-services.json
+secrets.properties
+
+# Python
+# Python
+backend/.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Lokale Datenbanken und Cache-Dateien
+# Bases locales et fichiers cache
+backend/data/cache/
+*.sqlite
+*.sqlite3
+*.db
+
+# Android / Gradle
+# Android / Gradle
+android-app/.gradle/
+android-app/build/
+android-app/app/build/
+.gradle/
+build/
+
+# Docker
+# Docker
+docker-data/
+
+# Logs
+# Journaux
+*.log
+logs/
+
+# Temporäre Dateien
+# Fichiers temporaires
+tmp/
+temp/
+*.tmp

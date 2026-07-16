@@ -1,0 +1,39 @@
+﻿# Einheitliche Zeilenenden fuer das gesamte Projekt
+# Fins de ligne uniformes pour tout le projet
+* text=auto eol=lf
+
+# PowerShell-Skripte bleiben Windows-kompatibel
+# Les scripts PowerShell restent compatibles Windows
+*.ps1 text eol=crlf
+
+# Windows-Batch-Dateien bleiben Windows-kompatibel
+# Les fichiers batch Windows restent compatibles Windows
+*.bat text eol=crlf
+
+# Shell-Skripte bleiben Linux-kompatibel
+# Les scripts shell restent compatibles Linux
+*.sh text eol=lf
+
+# Python-Dateien
+# Fichiers Python
+*.py text eol=lf
+
+# Kotlin-Dateien
+# Fichiers Kotlin
+*.kt text eol=lf
+*.kts text eol=lf
+
+# YAML- und JSON-Dateien
+# Fichiers YAML et JSON
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Markdown-Dokumentation
+# Documentation Markdown
+*.md text eol=lf
+
+# Docker-Dateien
+# Fichiers Docker
+Dockerfile text eol=lf
+*.dockerignore text eol=lf
