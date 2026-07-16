@@ -1,7 +1,7 @@
 ﻿import pytest
 
-from app.services.overpass_builder import OverpassBuildError, build_overpass_query
 from app.schemas.agent_plan import AgentPlan, SpatialFilter
+from app.services.overpass_builder import OverpassBuildError, build_overpass_query
 
 
 def test_build_overpass_query_from_agent_plan() -> None:
