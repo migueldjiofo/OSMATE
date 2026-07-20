@@ -21,25 +21,20 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.FillLayer
-import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
-import org.maplibre.android.style.layers.PropertyFactory.fillColor
-import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
-import org.maplibre.android.style.layers.PropertyFactory.lineColor
-import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
-import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.FeatureCollection
 
 private const val RESULT_SOURCE_ID = "osmate-search-results-source"
-private const val RESULT_FILL_LAYER_ID = "osmate-search-results-fill-layer"
-private const val RESULT_LINE_LAYER_ID = "osmate-search-results-line-layer"
 private const val RESULT_CIRCLE_LAYER_ID = "osmate-search-results-circle-layer"
+
+private const val SELECTED_SOURCE_ID = "osmate-selected-result-source"
+private const val SELECTED_CIRCLE_LAYER_ID = "osmate-selected-result-circle-layer"
+
 private const val EMPTY_FEATURE_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
 
 private val DEFAULT_LOCATION = LatLng(52.521918, 13.413215)
@@ -102,6 +97,12 @@ fun OsmateMapView(
                     addOrUpdateSearchResults(
                         style = style,
                         geoJson = EMPTY_FEATURE_COLLECTION,
+                    )
+
+                    addOrUpdateSelectedResult(
+                        style = style,
+                        latitude = null,
+                        longitude = null,
                     )
 
                     moveToDefaultLocation(map)
@@ -194,6 +195,12 @@ fun OsmateMapView(
                     },
                 )
 
+                addOrUpdateSelectedResult(
+                    style = style,
+                    latitude = selectedLatitude,
+                    longitude = selectedLongitude,
+                )
+
                 if (selectedLatitude != null && selectedLongitude != null) {
                     centerMapOnSelectedResult(
                         map = map,
@@ -219,7 +226,6 @@ private fun addOrUpdateSearchResults(
     geoJson: String,
 ) {
     val featureCollection = parseFeatureCollection(geoJson)
-
     val source = style.getSource(RESULT_SOURCE_ID) as? GeoJsonSource
 
     if (source == null) {
@@ -231,31 +237,6 @@ private fun addOrUpdateSearchResults(
         )
     } else {
         source.setGeoJson(featureCollection)
-    }
-
-    if (style.getLayer(RESULT_FILL_LAYER_ID) == null) {
-        style.addLayer(
-            FillLayer(
-                RESULT_FILL_LAYER_ID,
-                RESULT_SOURCE_ID,
-            ).withProperties(
-                fillColor(Color.parseColor("#5267A3")),
-                fillOpacity(0.25f),
-            ),
-        )
-    }
-
-    if (style.getLayer(RESULT_LINE_LAYER_ID) == null) {
-        style.addLayer(
-            LineLayer(
-                RESULT_LINE_LAYER_ID,
-                RESULT_SOURCE_ID,
-            ).withProperties(
-                lineColor(Color.parseColor("#5267A3")),
-                lineWidth(3.0f),
-                lineOpacity(0.9f),
-            ),
-        )
     }
 
     if (style.getLayer(RESULT_CIRCLE_LAYER_ID) == null) {
@@ -272,6 +253,73 @@ private fun addOrUpdateSearchResults(
             ),
         )
     }
+}
+
+private fun addOrUpdateSelectedResult(
+    style: Style,
+    latitude: Double?,
+    longitude: Double?,
+) {
+    val selectedGeoJson = createSelectedPointGeoJson(
+        latitude = latitude,
+        longitude = longitude,
+    )
+
+    val featureCollection = parseFeatureCollection(selectedGeoJson)
+    val source = style.getSource(SELECTED_SOURCE_ID) as? GeoJsonSource
+
+    if (source == null) {
+        style.addSource(
+            GeoJsonSource(
+                SELECTED_SOURCE_ID,
+                featureCollection,
+            ),
+        )
+    } else {
+        source.setGeoJson(featureCollection)
+    }
+
+    if (style.getLayer(SELECTED_CIRCLE_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(
+                SELECTED_CIRCLE_LAYER_ID,
+                SELECTED_SOURCE_ID,
+            ).withProperties(
+                circleRadius(14.0f),
+                circleColor(Color.parseColor("#FF7A00")),
+                circleStrokeColor(Color.WHITE),
+                circleStrokeWidth(4.0f),
+                circleOpacity(0.95f),
+            ),
+        )
+    }
+}
+
+private fun createSelectedPointGeoJson(
+    latitude: Double?,
+    longitude: Double?,
+): String {
+    if (latitude == null || longitude == null) {
+        return EMPTY_FEATURE_COLLECTION
+    }
+
+    return """
+    {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "selected": true
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [$longitude, $latitude]
+          }
+        }
+      ]
+    }
+    """.trimIndent()
 }
 
 private fun parseFeatureCollection(geoJson: String): FeatureCollection {
