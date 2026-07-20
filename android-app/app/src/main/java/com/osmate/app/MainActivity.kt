@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.osmate.app.ui.screen.SearchScreen
 import com.osmate.app.ui.theme.OSMATETheme
@@ -28,6 +30,7 @@ class MainActivity : ComponentActivity() {
                     onRadiusChange = viewModel::updateRadius,
                     onCheckBackendClick = viewModel::checkBackend,
                     onCreatePlanClick = viewModel::createPlan,
+                    modifier = Modifier.safeDrawingPadding(),
                 )
             }
         }
