@@ -10,6 +10,7 @@ data class SearchUiState(
     val resultText: String = "",
     val geoJson: String = "",
     val resultItems: List<SearchResultItem> = emptyList(),
+    val selectedResult: SearchResultItem? = null,
     val selectedResultTitle: String = "",
     val selectedLatitude: Double? = null,
     val selectedLongitude: Double? = null,

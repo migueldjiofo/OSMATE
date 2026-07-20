@@ -112,6 +112,11 @@ fun SearchScreen(
             CircularProgressIndicator()
         }
 
+        SelectedResultDetail(
+            item = state.selectedResult,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         SearchResultList(
             items = state.resultItems,
             selectedTitle = state.selectedResultTitle,

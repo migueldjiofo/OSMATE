@@ -38,6 +38,7 @@ class SearchViewModel(
     fun selectResult(item: SearchResultItem) {
         _uiState.update { state ->
             state.copy(
+                selectedResult = item,
                 selectedResultTitle = item.title,
                 selectedLatitude = item.latitude,
                 selectedLongitude = item.longitude,
@@ -83,6 +84,7 @@ class SearchViewModel(
                     resultText = "",
                     geoJson = "",
                     resultItems = emptyList(),
+                    selectedResult = null,
                     selectedResultTitle = "",
                     selectedLatitude = null,
                     selectedLongitude = null,
