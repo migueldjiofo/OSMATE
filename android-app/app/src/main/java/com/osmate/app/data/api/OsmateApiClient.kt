@@ -2,6 +2,7 @@
 
 import com.osmate.app.BuildConfig
 import com.osmate.app.data.model.SearchPlan
+import com.osmate.app.data.model.SearchResult
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -26,12 +27,11 @@ class OsmateApiClient(
         placeName: String,
         radiusM: Int,
     ): SearchPlan = withContext(Dispatchers.IO) {
-        val requestBody = JSONObject()
-            .put("query", query)
-            .put("place_name", placeName)
-            .put("radius_m", radiusM)
-            .put("limit", 10)
-            .put("language", "de")
+        val requestBody = createSearchRequestBody(
+            query = query,
+            placeName = placeName,
+            radiusM = radiusM,
+        )
 
         val response = executeRequest(
             path = "/api/v1/search/plan",
@@ -40,6 +40,39 @@ class OsmateApiClient(
         )
 
         parseSearchPlan(JSONObject(response))
+    }
+
+    suspend fun search(
+        query: String,
+        placeName: String,
+        radiusM: Int,
+    ): SearchResult = withContext(Dispatchers.IO) {
+        val requestBody = createSearchRequestBody(
+            query = query,
+            placeName = placeName,
+            radiusM = radiusM,
+        )
+
+        val response = executeRequest(
+            path = "/api/v1/search",
+            method = "POST",
+            body = requestBody,
+        )
+
+        parseSearchResult(JSONObject(response))
+    }
+
+    private fun createSearchRequestBody(
+        query: String,
+        placeName: String,
+        radiusM: Int,
+    ): JSONObject {
+        return JSONObject()
+            .put("query", query)
+            .put("place_name", placeName)
+            .put("radius_m", radiusM)
+            .put("limit", 30)
+            .put("language", "de")
     }
 
     private fun executeRequest(
@@ -53,7 +86,7 @@ class OsmateApiClient(
         try {
             connection.requestMethod = method
             connection.connectTimeout = 10_000
-            connection.readTimeout = 30_000
+            connection.readTimeout = 45_000
             connection.setRequestProperty("Accept", "application/json")
 
             if (body != null) {
@@ -90,12 +123,28 @@ class OsmateApiClient(
         }.orEmpty()
     }
 
+    private fun parseSearchResult(json: JSONObject): SearchResult {
+        val geoJsonValue = json.opt("geojson")
+
+        val geoJson = when (geoJsonValue) {
+            is JSONObject -> geoJsonValue.toString()
+            is String -> geoJsonValue
+            else -> emptyFeatureCollection()
+        }
+
+        return SearchResult(
+            plan = parseSearchPlan(json.getJSONObject("agent_plan")),
+            resultCount = json.optInt("result_count"),
+            geoJson = geoJson,
+        )
+    }
+
     private fun parseSearchPlan(json: JSONObject): SearchPlan {
-        val spatialFilter = json.getJSONObject("spatial_filter")
+        val spatialFilter = json.optJSONObject("spatial_filter") ?: JSONObject()
 
         return SearchPlan(
             category = json.optString("category"),
-            osmTags = jsonObjectToMap(json.getJSONObject("osm_tags")),
+            osmTags = jsonObjectToMap(json.optJSONObject("osm_tags") ?: JSONObject()),
             radiusM = spatialFilter.optInt("radius_m"),
             confidenceScore = json.optDouble("confidence_score"),
             plannerType = json.optString("planner_type"),
@@ -122,6 +171,10 @@ class OsmateApiClient(
         return List(jsonArray.length()) { index ->
             jsonArray.optString(index)
         }
+    }
+
+    private fun emptyFeatureCollection(): String {
+        return """{"type":"FeatureCollection","features":[]}"""
     }
 }
 

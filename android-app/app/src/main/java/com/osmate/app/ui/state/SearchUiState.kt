@@ -6,6 +6,7 @@ data class SearchUiState(
     val radiusM: String = "1000",
     val backendStatus: String = "",
     val resultText: String = "",
+    val geoJson: String = "",
     val errorMessage: String = "",
     val isLoading: Boolean = false,
 )

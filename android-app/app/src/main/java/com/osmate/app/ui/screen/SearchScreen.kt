@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.screen
+package com.osmate.app.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,7 +45,7 @@ fun SearchScreen(
         )
 
         Text(
-            text = "Agentischer räumlicher Assistent für OpenStreetMap",
+            text = "Agentischer rÃ¤umlicher Assistent fÃ¼r OpenStreetMap",
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -86,7 +86,7 @@ fun SearchScreen(
                 onClick = onCheckBackendClick,
                 enabled = !state.isLoading,
             ) {
-                Text("Backend prüfen")
+                Text("Backend prÃ¼fen")
             }
 
             Button(
@@ -98,6 +98,7 @@ fun SearchScreen(
         }
 
         OsmateMapView(
+            geoJson = state.geoJson,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),

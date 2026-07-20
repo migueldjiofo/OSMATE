@@ -70,16 +70,18 @@ class SearchViewModel(
                     isLoading = true,
                     errorMessage = "",
                     resultText = "",
+                    geoJson = "",
                 )
             }
 
             runCatching {
-                apiClient.createSearchPlan(
+                apiClient.search(
                     query = currentState.query,
                     placeName = currentState.placeName,
                     radiusM = radius,
                 )
-            }.onSuccess { plan ->
+            }.onSuccess { result ->
+                val plan = result.plan
                 val tags = plan.osmTags.entries.joinToString(
                     separator = ", ",
                 ) { entry ->
@@ -91,11 +93,13 @@ class SearchViewModel(
                         resultText = """
                             Kategorie: ${plan.category}
                             Tags: $tags
+                            Treffer: ${result.resultCount}
                             Radius: ${plan.radiusM} m
                             Confidence: ${plan.confidenceScore}
                             Planner: ${plan.plannerType}
                             Summary: ${plan.summary}
                         """.trimIndent(),
+                        geoJson = result.geoJson,
                         isLoading = false,
                     )
                 }
