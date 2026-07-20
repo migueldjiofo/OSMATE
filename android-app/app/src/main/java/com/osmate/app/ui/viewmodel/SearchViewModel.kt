@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.viewmodel
+package com.osmate.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -71,6 +71,7 @@ class SearchViewModel(
                     errorMessage = "",
                     resultText = "",
                     geoJson = "",
+                    resultItems = emptyList(),
                 )
             }
 
@@ -100,6 +101,7 @@ class SearchViewModel(
                             Summary: ${plan.summary}
                         """.trimIndent(),
                         geoJson = result.geoJson,
+                        resultItems = result.items,
                         isLoading = false,
                     )
                 }

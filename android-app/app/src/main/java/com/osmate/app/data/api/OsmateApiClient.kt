@@ -3,6 +3,7 @@
 import com.osmate.app.BuildConfig
 import com.osmate.app.data.model.SearchPlan
 import com.osmate.app.data.model.SearchResult
+import com.osmate.app.data.model.SearchResultItem
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -136,7 +137,97 @@ class OsmateApiClient(
             plan = parseSearchPlan(json.getJSONObject("agent_plan")),
             resultCount = json.optInt("result_count"),
             geoJson = geoJson,
+            items = parseResultItems(geoJson),
         )
+    }
+
+    private fun parseResultItems(geoJson: String): List<SearchResultItem> {
+        val root = runCatching {
+            JSONObject(geoJson)
+        }.getOrNull() ?: return emptyList()
+
+        val features = root.optJSONArray("features") ?: return emptyList()
+        val items = mutableListOf<SearchResultItem>()
+
+        for (index in 0 until features.length()) {
+            val feature = features.optJSONObject(index) ?: continue
+            val properties = feature.optJSONObject("properties") ?: JSONObject()
+            val geometry = feature.optJSONObject("geometry") ?: JSONObject()
+
+            val title = readTitle(
+                properties = properties,
+                fallbackIndex = index + 1,
+            )
+
+            val subtitle = readSubtitle(properties)
+            val coordinate = readPointCoordinate(geometry)
+
+            items += SearchResultItem(
+                title = title,
+                subtitle = subtitle,
+                latitude = coordinate?.first,
+                longitude = coordinate?.second,
+            )
+        }
+
+        return items
+    }
+
+    private fun readTitle(
+        properties: JSONObject,
+        fallbackIndex: Int,
+    ): String {
+        val name = properties.optString("name").trim()
+
+        if (name.isNotBlank()) {
+            return name
+        }
+
+        val brand = properties.optString("brand").trim()
+
+        if (brand.isNotBlank()) {
+            return brand
+        }
+
+        return "Ergebnis $fallbackIndex"
+    }
+
+    private fun readSubtitle(properties: JSONObject): String {
+        val amenity = properties.optString("amenity").trim()
+        val cuisine = properties.optString("cuisine").trim()
+        val outdoorSeating = properties.optString("outdoor_seating").trim()
+
+        val parts = listOf(
+            amenity.ifBlank {
+                "OSM-Objekt"
+            },
+            cuisine,
+            if (outdoorSeating == "yes") {
+                "Terrasse"
+            } else {
+                ""
+            },
+        ).filter { value ->
+            value.isNotBlank()
+        }
+
+        return parts.joinToString(" · ")
+    }
+
+    private fun readPointCoordinate(geometry: JSONObject): Pair<Double, Double>? {
+        if (geometry.optString("type") != "Point") {
+            return null
+        }
+
+        val coordinates = geometry.optJSONArray("coordinates") ?: return null
+        val longitude = coordinates.optDouble(0, Double.NaN)
+        val latitude = coordinates.optDouble(1, Double.NaN)
+
+        if (latitude.isNaN() || longitude.isNaN()) {
+            return null
+        }
+
+        return latitude to longitude
     }
 
     private fun parseSearchPlan(json: JSONObject): SearchPlan {

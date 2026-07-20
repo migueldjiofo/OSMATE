@@ -108,6 +108,11 @@ fun SearchScreen(
             CircularProgressIndicator()
         }
 
+        SearchResultList(
+            items = state.resultItems,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         if (state.backendStatus.isNotBlank()) {
             InfoCard(
                 title = "Backend",
