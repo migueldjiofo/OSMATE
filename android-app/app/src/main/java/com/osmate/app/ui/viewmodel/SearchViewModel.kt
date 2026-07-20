@@ -35,6 +35,30 @@ class SearchViewModel(
         }
     }
 
+    fun applySearchExample(
+        query: String,
+        placeName: String,
+        radiusM: String,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                query = query,
+                placeName = placeName,
+                radiusM = radiusM,
+                backendStatus = "",
+                resultText = "",
+                geoJson = "",
+                resultItems = emptyList(),
+                selectedResult = null,
+                selectedResultTitle = "",
+                selectedLatitude = null,
+                selectedLongitude = null,
+                errorMessage = "",
+                isLoading = false,
+            )
+        }
+    }
+
     fun selectResult(item: SearchResultItem) {
         _uiState.update { state ->
             state.copy(
@@ -94,7 +118,24 @@ class SearchViewModel(
 
     fun createPlan() {
         val currentState = _uiState.value
-        val radius = currentState.radiusM.toIntOrNull() ?: 1000
+        val query = currentState.query.trim()
+        val placeName = currentState.placeName.trim()
+        val radius = validateRadius(currentState.radiusM)
+
+        if (query.isBlank()) {
+            showValidationError("Bitte gib eine Suchanfrage ein.")
+            return
+        }
+
+        if (placeName.isBlank()) {
+            showValidationError("Bitte gib einen Ort ein.")
+            return
+        }
+
+        if (radius == null) {
+            showValidationError("Der Radius muss zwischen 100 und 5000 Metern liegen.")
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { state ->
@@ -113,8 +154,8 @@ class SearchViewModel(
 
             runCatching {
                 apiClient.search(
-                    query = currentState.query,
-                    placeName = currentState.placeName,
+                    query = query,
+                    placeName = placeName,
                     radiusM = radius,
                 )
             }.onSuccess { result ->
@@ -149,6 +190,25 @@ class SearchViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun validateRadius(radiusText: String): Int? {
+        val radius = radiusText.trim().toIntOrNull() ?: return null
+
+        if (radius !in 100..5000) {
+            return null
+        }
+
+        return radius
+    }
+
+    private fun showValidationError(message: String) {
+        _uiState.update { state ->
+            state.copy(
+                errorMessage = message,
+                isLoading = false,
+            )
         }
     }
 }

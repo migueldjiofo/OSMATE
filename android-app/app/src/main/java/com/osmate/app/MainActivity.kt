@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
                     onCheckBackendClick = viewModel::checkBackend,
                     onCreatePlanClick = viewModel::createPlan,
                     onResetClick = viewModel::resetResults,
+                    onExampleClick = viewModel::applySearchExample,
                     onResultClick = viewModel::selectResult,
                     modifier = Modifier.safeDrawingPadding(),
                 )

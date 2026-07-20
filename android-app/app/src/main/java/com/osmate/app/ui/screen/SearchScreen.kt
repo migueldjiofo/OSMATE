@@ -1,5 +1,6 @@
 package com.osmate.app.ui.screen
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ fun SearchScreen(
     onCheckBackendClick: () -> Unit,
     onCreatePlanClick: () -> Unit,
     onResetClick: () -> Unit,
+    onExampleClick: (String, String, String) -> Unit,
     onResultClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -51,6 +53,10 @@ fun SearchScreen(
         Text(
             text = "Agentischer r\u00e4umlicher Assistent f\u00fcr OpenStreetMap",
             style = MaterialTheme.typography.bodyMedium,
+        )
+
+        QuickExamples(
+            onExampleClick = onExampleClick,
         )
 
         OutlinedTextField(
@@ -159,6 +165,62 @@ fun SearchScreen(
 }
 
 @Composable
+private fun QuickExamples(
+    onExampleClick: (String, String, String) -> Unit,
+) {
+    val examples = listOf(
+        SearchExample(
+            label = "Caf\u00e9s mit Terrasse",
+            query = "Finde Cafes mit Terrasse",
+            placeName = "Berlin Alexanderplatz",
+            radiusM = "1000",
+        ),
+        SearchExample(
+            label = "Sp\u00e4tis",
+            query = "Finde Spaetis in der Naehe",
+            placeName = "Berlin Kreuzberg",
+            radiusM = "1200",
+        ),
+        SearchExample(
+            label = "Spielpl\u00e4tze",
+            query = "Finde Spielplaetze mit Wasserspielen",
+            placeName = "Berlin Mitte",
+            radiusM = "1500",
+        ),
+    )
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Schnellbeispiele",
+            style = MaterialTheme.typography.titleSmall,
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            examples.forEach { example ->
+                OutlinedButton(
+                    onClick = {
+                        onExampleClick(
+                            example.query,
+                            example.placeName,
+                            example.radiusM,
+                        )
+                    },
+                ) {
+                    Text(example.label)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun LoadingCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -202,3 +264,10 @@ private fun InfoCard(
         }
     }
 }
+
+private data class SearchExample(
+    val label: String,
+    val query: String,
+    val placeName: String,
+    val radiusM: String,
+)
