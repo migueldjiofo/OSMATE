@@ -1,4 +1,4 @@
-﻿package com.osmate.app.data.api
+package com.osmate.app.data.api
 
 import com.osmate.app.BuildConfig
 import com.osmate.app.data.model.SearchPlan
@@ -23,36 +23,17 @@ class OsmateApiClient(
         "${json.optString("status")} - ${json.optString("service")}"
     }
 
-    suspend fun createSearchPlan(
-        query: String,
-        placeName: String,
-        radiusM: Int,
-    ): SearchPlan = withContext(Dispatchers.IO) {
-        val requestBody = createSearchRequestBody(
-            query = query,
-            placeName = placeName,
-            radiusM = radiusM,
-        )
-
-        val response = executeRequest(
-            path = "/api/v1/search/plan",
-            method = "POST",
-            body = requestBody,
-        )
-
-        parseSearchPlan(JSONObject(response))
-    }
-
     suspend fun search(
         query: String,
         placeName: String,
         radiusM: Int,
     ): SearchResult = withContext(Dispatchers.IO) {
-        val requestBody = createSearchRequestBody(
-            query = query,
-            placeName = placeName,
-            radiusM = radiusM,
-        )
+        val requestBody = JSONObject()
+            .put("query", query)
+            .put("place_name", placeName)
+            .put("radius_m", radiusM)
+            .put("limit", 30)
+            .put("language", "de")
 
         val response = executeRequest(
             path = "/api/v1/search",
@@ -61,19 +42,6 @@ class OsmateApiClient(
         )
 
         parseSearchResult(JSONObject(response))
-    }
-
-    private fun createSearchRequestBody(
-        query: String,
-        placeName: String,
-        radiusM: Int,
-    ): JSONObject {
-        return JSONObject()
-            .put("query", query)
-            .put("place_name", placeName)
-            .put("radius_m", radiusM)
-            .put("limit", 30)
-            .put("language", "de")
     }
 
     private fun executeRequest(
@@ -101,9 +69,7 @@ class OsmateApiClient(
             val responseText = readResponse(connection)
 
             if (connection.responseCode !in 200..299) {
-                throw OsmateApiException(
-                    "HTTP ${connection.responseCode}: $responseText",
-                )
+                throw OsmateApiException("HTTP ${connection.responseCode}: $responseText")
             }
 
             return responseText
@@ -211,7 +177,7 @@ class OsmateApiClient(
             value.isNotBlank()
         }
 
-        return parts.joinToString(" · ")
+        return parts.joinToString(" | ")
     }
 
     private fun readPointCoordinate(geometry: JSONObject): Pair<Double, Double>? {

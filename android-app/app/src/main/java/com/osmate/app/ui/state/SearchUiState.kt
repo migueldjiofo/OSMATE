@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.state
+package com.osmate.app.ui.state
 
 import com.osmate.app.data.model.SearchResultItem
 

@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.screen
+package com.osmate.app.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -80,7 +80,7 @@ private fun SearchResultCard(
 
             if (item.latitude != null && item.longitude != null) {
                 Text(
-                    text = "Lat: ${"%.5f".format(item.latitude)} · Lon: ${"%.5f".format(item.longitude)}",
+                    text = "Lat: ${"%.5f".format(item.latitude)} | Lon: ${"%.5f".format(item.longitude)}",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

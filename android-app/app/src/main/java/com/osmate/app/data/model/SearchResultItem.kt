@@ -1,4 +1,4 @@
-﻿package com.osmate.app.data.model
+package com.osmate.app.data.model
 
 data class SearchResultItem(
     val title: String,
