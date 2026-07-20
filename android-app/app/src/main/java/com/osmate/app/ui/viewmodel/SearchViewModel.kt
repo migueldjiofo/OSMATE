@@ -46,10 +46,30 @@ class SearchViewModel(
         }
     }
 
+    fun resetResults() {
+        _uiState.update { state ->
+            state.copy(
+                backendStatus = "",
+                resultText = "",
+                geoJson = "",
+                resultItems = emptyList(),
+                selectedResult = null,
+                selectedResultTitle = "",
+                selectedLatitude = null,
+                selectedLongitude = null,
+                errorMessage = "",
+                isLoading = false,
+            )
+        }
+    }
+
     fun checkBackend() {
         viewModelScope.launch {
             _uiState.update { state ->
-                state.copy(isLoading = true, errorMessage = "")
+                state.copy(
+                    isLoading = true,
+                    errorMessage = "",
+                )
             }
 
             runCatching {

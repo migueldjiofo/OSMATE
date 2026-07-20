@@ -14,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ fun SearchScreen(
     onRadiusChange: (String) -> Unit,
     onCheckBackendClick: () -> Unit,
     onCreatePlanClick: () -> Unit,
+    onResetClick: () -> Unit,
     onResultClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -95,8 +97,15 @@ fun SearchScreen(
                 onClick = onCreatePlanClick,
                 enabled = !state.isLoading,
             ) {
-                Text("Plan erstellen")
+                Text("Suchen")
             }
+        }
+
+        OutlinedButton(
+            onClick = onResetClick,
+            enabled = !state.isLoading,
+        ) {
+            Text("Zur\u00fccksetzen")
         }
 
         OsmateMapView(
@@ -109,7 +118,7 @@ fun SearchScreen(
         )
 
         if (state.isLoading) {
-            CircularProgressIndicator()
+            LoadingCard()
         }
 
         SelectedResultDetail(
@@ -146,6 +155,25 @@ fun SearchScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun LoadingCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularProgressIndicator()
+
+            Text(
+                text = "OSMATE verarbeitet die Anfrage...",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }
 

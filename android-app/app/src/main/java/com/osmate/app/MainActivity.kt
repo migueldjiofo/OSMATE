@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
                     onRadiusChange = viewModel::updateRadius,
                     onCheckBackendClick = viewModel::checkBackend,
                     onCreatePlanClick = viewModel::createPlan,
+                    onResetClick = viewModel::resetResults,
                     onResultClick = viewModel::selectResult,
                     modifier = Modifier.safeDrawingPadding(),
                 )
