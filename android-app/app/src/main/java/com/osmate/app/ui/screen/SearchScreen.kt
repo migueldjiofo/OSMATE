@@ -156,9 +156,8 @@ fun SearchScreen(
         }
 
         if (state.errorMessage.isNotBlank()) {
-            InfoCard(
-                title = "Fehler",
-                body = state.errorMessage,
+            ErrorCard(
+                message = state.errorMessage,
             )
         }
 
@@ -241,6 +240,29 @@ private fun LoadingCard() {
     }
 }
 
+@Composable
+private fun ErrorCard(
+    message: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Hinweis",
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
 @Composable
 private fun InfoCard(
     title: String,
