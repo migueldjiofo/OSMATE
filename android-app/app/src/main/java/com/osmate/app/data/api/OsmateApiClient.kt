@@ -125,12 +125,16 @@ class OsmateApiClient(
                 fallbackIndex = index + 1,
             )
 
+            val primaryTag = readPrimaryTag(properties)
             val subtitle = readSubtitle(properties)
+            val openingHours = properties.optString("opening_hours").trim()
             val coordinate = readPointCoordinate(geometry)
 
             items += SearchResultItem(
                 title = title,
                 subtitle = subtitle,
+                primaryTag = primaryTag,
+                openingHours = openingHours,
                 latitude = coordinate?.first,
                 longitude = coordinate?.second,
             )
@@ -143,41 +147,77 @@ class OsmateApiClient(
         properties: JSONObject,
         fallbackIndex: Int,
     ): String {
-        val name = properties.optString("name").trim()
+        val candidates = listOf(
+            properties.optString("name").trim(),
+            properties.optString("brand").trim(),
+            properties.optString("operator").trim(),
+        )
 
-        if (name.isNotBlank()) {
-            return name
+        candidates.forEach { value ->
+            if (value.isNotBlank()) {
+                return value
+            }
         }
 
-        val brand = properties.optString("brand").trim()
+        return "OSM-Objekt $fallbackIndex"
+    }
 
-        if (brand.isNotBlank()) {
-            return brand
+    private fun readPrimaryTag(properties: JSONObject): String {
+        val tagKeys = listOf(
+            "amenity",
+            "shop",
+            "leisure",
+            "tourism",
+            "public_transport",
+            "highway",
+            "cuisine",
+        )
+
+        tagKeys.forEach { key ->
+            val value = properties.optString(key).trim()
+
+            if (value.isNotBlank()) {
+                return "$key=$value"
+            }
         }
 
-        return "Ergebnis $fallbackIndex"
+        return "OSM-Objekt"
     }
 
     private fun readSubtitle(properties: JSONObject): String {
-        val amenity = properties.optString("amenity").trim()
-        val cuisine = properties.optString("cuisine").trim()
-        val outdoorSeating = properties.optString("outdoor_seating").trim()
+        val parts = mutableListOf<String>()
 
-        val parts = listOf(
-            amenity.ifBlank {
-                "OSM-Objekt"
-            },
-            cuisine,
-            if (outdoorSeating == "yes") {
-                "Terrasse"
-            } else {
-                ""
-            },
-        ).filter { value ->
-            value.isNotBlank()
+        addTagIfPresent(properties, "amenity", parts)
+        addTagIfPresent(properties, "shop", parts)
+        addTagIfPresent(properties, "leisure", parts)
+        addTagIfPresent(properties, "tourism", parts)
+        addTagIfPresent(properties, "cuisine", parts)
+
+        if (properties.optString("outdoor_seating").trim() == "yes") {
+            parts += "Terrasse"
         }
 
-        return parts.joinToString(" | ")
+        if (properties.optString("wheelchair").trim() == "yes") {
+            parts += "barrierearm"
+        }
+
+        return if (parts.isEmpty()) {
+            "OpenStreetMap-Objekt"
+        } else {
+            parts.joinToString(" | ")
+        }
+    }
+
+    private fun addTagIfPresent(
+        properties: JSONObject,
+        key: String,
+        parts: MutableList<String>,
+    ) {
+        val value = properties.optString(key).trim()
+
+        if (value.isNotBlank()) {
+            parts += "$key=$value"
+        }
     }
 
     private fun readPointCoordinate(geometry: JSONObject): Pair<Double, Double>? {

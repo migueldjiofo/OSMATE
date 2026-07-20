@@ -28,7 +28,6 @@ fun SelectedResultDetail(
     val context = LocalContext.current
     val latitude = item.latitude
     val longitude = item.longitude
-    val hasCoordinates = latitude != null && longitude != null
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -38,7 +37,7 @@ fun SelectedResultDetail(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "Ausgewählter Ort",
+                text = "Ausgew\u00e4hlter Ort",
                 style = MaterialTheme.typography.titleMedium,
             )
 
@@ -48,11 +47,25 @@ fun SelectedResultDetail(
             )
 
             Text(
-                text = item.subtitle,
+                text = item.primaryTag,
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            if (hasCoordinates) {
+            Text(
+                text = item.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            if (item.openingHours.isNotBlank()) {
+                Text(
+                    text = "\u00d6ffnungszeiten: ${item.openingHours}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            if (latitude != null && longitude != null) {
+                val openStreetMapUrl = "https://www.openstreetmap.org/?mlat=$latitude&mlon=$longitude#map=18/$latitude/$longitude"
+
                 Text(
                     text = "Lat: ${"%.5f".format(latitude)} | Lon: ${"%.5f".format(longitude)}",
                     style = MaterialTheme.typography.bodySmall,
@@ -60,25 +73,19 @@ fun SelectedResultDetail(
 
                 Button(
                     onClick = {
-                        if (latitude != null && longitude != null) {
-                            val uri = Uri.parse(
-                                "https://www.openstreetmap.org/?mlat=$latitude&mlon=$longitude#map=18/$latitude/$longitude",
-                            )
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(openStreetMapUrl),
+                        )
 
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                uri,
-                            )
-
-                            context.startActivity(intent)
-                        }
+                        context.startActivity(intent)
                     },
                 ) {
-                    Text("In OpenStreetMap öffnen")
+                    Text("In OpenStreetMap \u00f6ffnen")
                 }
             } else {
                 Text(
-                    text = "Für dieses Objekt ist keine direkte Punktkoordinate verfügbar.",
+                    text = "F\u00fcr dieses Objekt ist keine direkte Punktkoordinate verf\u00fcgbar.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

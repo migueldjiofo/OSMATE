@@ -8,6 +8,7 @@ data class SearchUiState(
     val radiusM: String = "1000",
     val backendStatus: String = "",
     val resultText: String = "",
+    val resultCount: Int = 0,
     val geoJson: String = "",
     val resultItems: List<SearchResultItem> = emptyList(),
     val selectedResult: SearchResultItem? = null,

@@ -49,6 +49,7 @@ class SearchViewModel(
                 resultText = "",
                 geoJson = "",
                 resultItems = emptyList(),
+                resultCount = 0,
                 selectedResult = null,
                 selectedResultTitle = "",
                 selectedLatitude = null,
@@ -77,6 +78,7 @@ class SearchViewModel(
                 resultText = "",
                 geoJson = "",
                 resultItems = emptyList(),
+                resultCount = 0,
                 selectedResult = null,
                 selectedResultTitle = "",
                 selectedLatitude = null,
@@ -145,6 +147,7 @@ class SearchViewModel(
                     resultText = "",
                     geoJson = "",
                     resultItems = emptyList(),
+                resultCount = 0,
                     selectedResult = null,
                     selectedResultTitle = "",
                     selectedLatitude = null,
@@ -179,6 +182,7 @@ class SearchViewModel(
                         """.trimIndent(),
                         geoJson = result.geoJson,
                         resultItems = result.items,
+                        resultCount = result.resultCount,
                         isLoading = false,
                     )
                 }

@@ -16,12 +16,14 @@ import com.osmate.app.data.model.SearchResultItem
 
 @Composable
 fun SearchResultList(
+    resultCount: Int,
     items: List<SearchResultItem>,
     selectedTitle: String,
+    showEmptyState: Boolean,
     onItemClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (items.isEmpty()) {
+    if (items.isEmpty() && !showEmptyState) {
         return
     }
 
@@ -33,6 +35,16 @@ fun SearchResultList(
             text = "Gefundene Orte",
             style = MaterialTheme.typography.titleMedium,
         )
+
+        ResultSummaryCard(
+            resultCount = resultCount,
+            visibleCount = items.take(10).size,
+        )
+
+        if (items.isEmpty()) {
+            EmptyResultCard()
+            return
+        }
 
         items.take(10).forEachIndexed { index, item ->
             SearchResultCard(
@@ -48,6 +60,53 @@ fun SearchResultList(
         if (items.size > 10) {
             Text(
                 text = "${items.size - 10} weitere Ergebnisse werden nicht angezeigt.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResultSummaryCard(
+    resultCount: Int,
+    visibleCount: Int,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "$resultCount Ergebnisse gefunden",
+                style = MaterialTheme.typography.titleSmall,
+            )
+
+            Text(
+                text = "$visibleCount Ergebnisse werden in der Liste angezeigt.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyResultCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "Keine passenden Orte gefunden.",
+                style = MaterialTheme.typography.titleSmall,
+            )
+
+            Text(
+                text = "Passe die Suchanfrage, den Ort oder den Radius an.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -92,9 +151,21 @@ private fun SearchResultCard(
             }
 
             Text(
-                text = item.subtitle,
+                text = item.primaryTag,
                 style = MaterialTheme.typography.bodyMedium,
             )
+
+            Text(
+                text = item.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            if (item.openingHours.isNotBlank()) {
+                Text(
+                    text = "\u00d6ffnungszeiten: ${item.openingHours}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
             if (item.latitude != null && item.longitude != null) {
                 Text(

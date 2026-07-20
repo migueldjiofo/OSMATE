@@ -133,8 +133,10 @@ fun SearchScreen(
         )
 
         SearchResultList(
+            resultCount = state.resultCount,
             items = state.resultItems,
             selectedTitle = state.selectedResultTitle,
+            showEmptyState = state.resultText.isNotBlank(),
             onItemClick = onResultClick,
             modifier = Modifier.fillMaxWidth(),
         )
