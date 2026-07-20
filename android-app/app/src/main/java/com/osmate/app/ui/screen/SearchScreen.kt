@@ -45,7 +45,7 @@ fun SearchScreen(
         )
 
         Text(
-            text = "Agentischer rÃ¤umlicher Assistent fÃ¼r OpenStreetMap",
+            text = "Agentischer rÃƒÂ¤umlicher Assistent fÃƒÂ¼r OpenStreetMap",
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -86,7 +86,7 @@ fun SearchScreen(
                 onClick = onCheckBackendClick,
                 enabled = !state.isLoading,
             ) {
-                Text("Backend prÃ¼fen")
+                Text("Backend prÃƒÂ¼fen")
             }
 
             Button(
