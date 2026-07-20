@@ -5,13 +5,14 @@ import android.os.Bundle
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.MapLibre
@@ -72,6 +73,14 @@ fun OsmateMapView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val lastCenteredGeoJson = remember {
+        mutableStateOf<String?>(null)
+    }
+
+    val lastCenteredSelectedKey = remember {
+        mutableStateOf<String?>(null)
+    }
+
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
 
@@ -106,6 +115,8 @@ fun OsmateMapView(
                     )
 
                     moveToDefaultLocation(map)
+                    lastCenteredGeoJson.value = ""
+                    lastCenteredSelectedKey.value = null
                 }
             }
         }
@@ -187,12 +198,13 @@ fun OsmateMapView(
         update = { view ->
             view.getMapAsync { map ->
                 val style = map.style ?: return@getMapAsync
+                val normalizedGeoJson = geoJson.ifBlank {
+                    EMPTY_FEATURE_COLLECTION
+                }
 
                 addOrUpdateSearchResults(
                     style = style,
-                    geoJson = geoJson.ifBlank {
-                        EMPTY_FEATURE_COLLECTION
-                    },
+                    geoJson = normalizedGeoJson,
                 )
 
                 addOrUpdateSelectedResult(
@@ -201,24 +213,82 @@ fun OsmateMapView(
                     longitude = selectedLongitude,
                 )
 
-                if (selectedLatitude != null && selectedLongitude != null) {
-                    centerMapOnSelectedResult(
-                        map = map,
-                        latitude = selectedLatitude,
-                        longitude = selectedLongitude,
-                    )
-                } else if (geoJson.isBlank()) {
-                    moveToDefaultLocation(map)
-                } else {
-                    centerMapOnGeoJson(
-                        map = map,
-                        geoJson = geoJson,
-                    )
-                }
+                updateCameraIfNeeded(
+                    map = map,
+                    geoJson = geoJson,
+                    selectedLatitude = selectedLatitude,
+                    selectedLongitude = selectedLongitude,
+                    lastCenteredGeoJson = lastCenteredGeoJson.value,
+                    lastCenteredSelectedKey = lastCenteredSelectedKey.value,
+                    onGeoJsonCentered = { centeredGeoJson ->
+                        lastCenteredGeoJson.value = centeredGeoJson
+                    },
+                    onSelectedCentered = { selectedKey ->
+                        lastCenteredSelectedKey.value = selectedKey
+                    },
+                )
             }
         },
         modifier = modifier,
     )
+}
+
+private fun updateCameraIfNeeded(
+    map: MapLibreMap,
+    geoJson: String,
+    selectedLatitude: Double?,
+    selectedLongitude: Double?,
+    lastCenteredGeoJson: String?,
+    lastCenteredSelectedKey: String?,
+    onGeoJsonCentered: (String) -> Unit,
+    onSelectedCentered: (String?) -> Unit,
+) {
+    val selectedKey = createSelectedKey(
+        latitude = selectedLatitude,
+        longitude = selectedLongitude,
+    )
+
+    if (selectedKey != null && selectedKey != lastCenteredSelectedKey) {
+        centerMapOnSelectedResult(
+            map = map,
+            latitude = selectedLatitude ?: return,
+            longitude = selectedLongitude ?: return,
+        )
+
+        onSelectedCentered(selectedKey)
+        return
+    }
+
+    if (selectedKey == null && geoJson.isBlank()) {
+        if (lastCenteredGeoJson != "" || lastCenteredSelectedKey != null) {
+            moveToDefaultLocation(map)
+            onGeoJsonCentered("")
+            onSelectedCentered(null)
+        }
+
+        return
+    }
+
+    if (selectedKey == null && geoJson.isNotBlank() && geoJson != lastCenteredGeoJson) {
+        centerMapOnGeoJson(
+            map = map,
+            geoJson = geoJson,
+        )
+
+        onGeoJsonCentered(geoJson)
+        onSelectedCentered(null)
+    }
+}
+
+private fun createSelectedKey(
+    latitude: Double?,
+    longitude: Double?,
+): String? {
+    if (latitude == null || longitude == null) {
+        return null
+    }
+
+    return "$latitude,$longitude"
 }
 
 private fun addOrUpdateSearchResults(
@@ -378,7 +448,7 @@ private fun centerMapOnGeoJson(
         coordinate.longitude
     }.average()
 
-    map.moveCamera(
+    map.animateCamera(
         CameraUpdateFactory.newLatLngZoom(
             LatLng(
                 averageLatitude,
