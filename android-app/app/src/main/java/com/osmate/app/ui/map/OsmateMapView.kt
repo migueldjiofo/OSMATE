@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.map
+package com.osmate.app.ui.map
 
 import android.graphics.Color
 import android.os.Bundle
@@ -70,6 +70,8 @@ private val OSM_RASTER_STYLE = """
 @Composable
 fun OsmateMapView(
     geoJson: String,
+    selectedLatitude: Double?,
+    selectedLongitude: Double?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -192,7 +194,13 @@ fun OsmateMapView(
                     },
                 )
 
-                if (geoJson.isBlank()) {
+                if (selectedLatitude != null && selectedLongitude != null) {
+                    centerMapOnSelectedResult(
+                        map = map,
+                        latitude = selectedLatitude,
+                        longitude = selectedLongitude,
+                    )
+                } else if (geoJson.isBlank()) {
                     moveToDefaultLocation(map)
                 } else {
                     centerMapOnGeoJson(
@@ -283,6 +291,22 @@ private fun moveToDefaultLocation(map: MapLibreMap) {
         CameraUpdateFactory.newLatLngZoom(
             DEFAULT_LOCATION,
             14.0,
+        ),
+    )
+}
+
+private fun centerMapOnSelectedResult(
+    map: MapLibreMap,
+    latitude: Double,
+    longitude: Double,
+) {
+    map.animateCamera(
+        CameraUpdateFactory.newLatLngZoom(
+            LatLng(
+                latitude,
+                longitude,
+            ),
+            17.0,
         ),
     )
 }

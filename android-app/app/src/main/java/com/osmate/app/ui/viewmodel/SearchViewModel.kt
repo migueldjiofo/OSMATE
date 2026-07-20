@@ -3,6 +3,7 @@ package com.osmate.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.osmate.app.data.api.OsmateApiClient
+import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.ui.state.SearchUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,16 @@ class SearchViewModel(
     fun updateRadius(value: String) {
         _uiState.update { state ->
             state.copy(radiusM = value)
+        }
+    }
+
+    fun selectResult(item: SearchResultItem) {
+        _uiState.update { state ->
+            state.copy(
+                selectedResultTitle = item.title,
+                selectedLatitude = item.latitude,
+                selectedLongitude = item.longitude,
+            )
         }
     }
 
@@ -72,6 +83,9 @@ class SearchViewModel(
                     resultText = "",
                     geoJson = "",
                     resultItems = emptyList(),
+                    selectedResultTitle = "",
+                    selectedLatitude = null,
+                    selectedLongitude = null,
                 )
             }
 

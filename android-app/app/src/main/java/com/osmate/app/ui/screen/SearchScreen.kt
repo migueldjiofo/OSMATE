@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.ui.map.OsmateMapView
 import com.osmate.app.ui.state.SearchUiState
 
@@ -30,6 +31,7 @@ fun SearchScreen(
     onRadiusChange: (String) -> Unit,
     onCheckBackendClick: () -> Unit,
     onCreatePlanClick: () -> Unit,
+    onResultClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -99,6 +101,8 @@ fun SearchScreen(
 
         OsmateMapView(
             geoJson = state.geoJson,
+            selectedLatitude = state.selectedLatitude,
+            selectedLongitude = state.selectedLongitude,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),
@@ -110,6 +114,8 @@ fun SearchScreen(
 
         SearchResultList(
             items = state.resultItems,
+            selectedTitle = state.selectedResultTitle,
+            onItemClick = onResultClick,
             modifier = Modifier.fillMaxWidth(),
         )
 

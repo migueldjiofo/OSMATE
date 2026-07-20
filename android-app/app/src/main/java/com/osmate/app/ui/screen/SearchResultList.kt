@@ -1,5 +1,6 @@
 package com.osmate.app.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,8 @@ import com.osmate.app.data.model.SearchResultItem
 @Composable
 fun SearchResultList(
     items: List<SearchResultItem>,
+    selectedTitle: String,
+    onItemClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) {
@@ -35,6 +38,10 @@ fun SearchResultList(
             SearchResultCard(
                 index = index + 1,
                 item = item,
+                isSelected = item.title == selectedTitle,
+                onClick = {
+                    onItemClick(item)
+                },
             )
         }
 
@@ -51,9 +58,16 @@ fun SearchResultList(
 private fun SearchResultCard(
     index: Int,
     item: SearchResultItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                enabled = item.latitude != null && item.longitude != null,
+                onClick = onClick,
+            ),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -63,7 +77,11 @@ private fun SearchResultCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = "$index.",
+                    text = if (isSelected) {
+                        "\u2713"
+                    } else {
+                        "$index."
+                    },
                     style = MaterialTheme.typography.titleSmall,
                 )
 
@@ -81,6 +99,11 @@ private fun SearchResultCard(
             if (item.latitude != null && item.longitude != null) {
                 Text(
                     text = "Lat: ${"%.5f".format(item.latitude)} | Lon: ${"%.5f".format(item.longitude)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Text(
+                    text = "Keine Punktkoordinate verf\u00fcgbar",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

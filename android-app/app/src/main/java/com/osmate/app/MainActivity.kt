@@ -1,4 +1,4 @@
-﻿package com.osmate.app
+package com.osmate.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -30,6 +30,7 @@ class MainActivity : ComponentActivity() {
                     onRadiusChange = viewModel::updateRadius,
                     onCheckBackendClick = viewModel::checkBackend,
                     onCreatePlanClick = viewModel::createPlan,
+                    onResultClick = viewModel::selectResult,
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }
