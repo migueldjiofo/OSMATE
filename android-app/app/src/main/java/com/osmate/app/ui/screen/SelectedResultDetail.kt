@@ -26,8 +26,6 @@ fun SelectedResultDetail(
     }
 
     val context = LocalContext.current
-    val latitude = item.latitude
-    val longitude = item.longitude
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -63,32 +61,69 @@ fun SelectedResultDetail(
                 )
             }
 
-            if (latitude != null && longitude != null) {
-                val openStreetMapUrl = "https://www.openstreetmap.org/?mlat=$latitude&mlon=$longitude#map=18/$latitude/$longitude"
+            CoordinateSection(
+                item = item,
+                onOpenInOpenStreetMap = { latitude, longitude ->
+                    val url = createOpenStreetMapUrl(
+                        latitude = latitude,
+                        longitude = longitude,
+                    )
 
-                Text(
-                    text = "Lat: ${"%.5f".format(latitude)} | Lon: ${"%.5f".format(longitude)}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse(url),
+                    )
 
-                Button(
-                    onClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse(openStreetMapUrl),
-                        )
+                    context.startActivity(intent)
+                },
+            )
+        }
+    }
+}
 
-                        context.startActivity(intent)
-                    },
-                ) {
-                    Text("In OpenStreetMap \u00f6ffnen")
-                }
-            } else {
-                Text(
-                    text = "F\u00fcr dieses Objekt ist keine direkte Punktkoordinate verf\u00fcgbar.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+@Composable
+private fun CoordinateSection(
+    item: SearchResultItem,
+    onOpenInOpenStreetMap: (Double, Double) -> Unit,
+) {
+    val latitude = item.latitude
+    val longitude = item.longitude
+
+    when {
+        latitude == null || longitude == null -> {
+            Text(
+                text = "F\u00fcr dieses Objekt ist keine direkte Punktkoordinate verf\u00fcgbar.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        else -> {
+            Text(
+                text = "Lat: ${formatCoordinate(latitude)} | Lon: ${formatCoordinate(longitude)}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            Button(
+                onClick = {
+                    onOpenInOpenStreetMap(
+                        latitude,
+                        longitude,
+                    )
+                },
+            ) {
+                Text("In OpenStreetMap \u00f6ffnen")
             }
         }
     }
+}
+
+private fun createOpenStreetMapUrl(
+    latitude: Double,
+    longitude: Double,
+): String {
+    return "https://www.openstreetmap.org/?mlat=$latitude&mlon=$longitude#map=18/$latitude/$longitude"
+}
+
+private fun formatCoordinate(value: Double): String {
+    return "%.5f".format(value)
 }
