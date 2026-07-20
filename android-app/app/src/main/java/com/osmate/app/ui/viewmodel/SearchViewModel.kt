@@ -2,8 +2,10 @@ package com.osmate.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.osmate.app.data.api.OsmateApiClient
 import com.osmate.app.data.model.SearchResultItem
+import com.osmate.app.data.repository.SearchRepository
+import com.osmate.app.domain.validation.SearchInputValidator
+import com.osmate.app.ui.error.ErrorMessageMapper
 import com.osmate.app.ui.state.SearchUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,7 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SearchViewModel(
-    private val apiClient: OsmateApiClient = OsmateApiClient(),
+    private val repository: SearchRepository = SearchRepository(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
@@ -99,7 +101,7 @@ class SearchViewModel(
             }
 
             runCatching {
-                apiClient.getBackendHealth()
+                repository.getBackendHealth()
             }.onSuccess { status ->
                 _uiState.update { state ->
                     state.copy(
@@ -109,34 +111,22 @@ class SearchViewModel(
                     )
                 }
             }.onFailure { error ->
-                _uiState.update { state ->
-                    state.copy(
-                        errorMessage = createFriendlyErrorMessage(error),
-                        isLoading = false,
-                    )
-                }
+                showError(error)
             }
         }
     }
 
     fun createPlan() {
         val currentState = _uiState.value
-        val query = currentState.query.trim()
-        val placeName = currentState.placeName.trim()
-        val radius = validateRadius(currentState.radiusM)
 
-        if (query.isBlank()) {
-            showValidationError("Bitte gib eine Suchanfrage ein.")
-            return
-        }
+        val validation = SearchInputValidator.validate(
+            query = currentState.query,
+            placeName = currentState.placeName,
+            radiusText = currentState.radiusM,
+        )
 
-        if (placeName.isBlank()) {
-            showValidationError("Bitte gib einen Ort ein.")
-            return
-        }
-
-        if (radius == null) {
-            showValidationError("Der Radius muss zwischen 100 und 5000 Metern liegen.")
+        if (validation.errorMessage != null || validation.radiusM == null) {
+            showValidationError(validation.errorMessage.orEmpty())
             return
         }
 
@@ -157,10 +147,10 @@ class SearchViewModel(
             }
 
             runCatching {
-                apiClient.search(
-                    query = query,
-                    placeName = placeName,
-                    radiusM = radius,
+                repository.search(
+                    query = validation.query,
+                    placeName = validation.placeName,
+                    radiusM = validation.radiusM,
                 )
             }.onSuccess { result ->
                 val plan = result.plan
@@ -189,24 +179,9 @@ class SearchViewModel(
                     )
                 }
             }.onFailure { error ->
-                _uiState.update { state ->
-                    state.copy(
-                        errorMessage = createFriendlyErrorMessage(error),
-                        isLoading = false,
-                    )
-                }
+                showError(error)
             }
         }
-    }
-
-    private fun validateRadius(radiusText: String): Int? {
-        val radius = radiusText.trim().toIntOrNull() ?: return null
-
-        if (radius !in 100..5000) {
-            return null
-        }
-
-        return radius
     }
 
     private fun showValidationError(message: String) {
@@ -218,56 +193,12 @@ class SearchViewModel(
         }
     }
 
-    private fun createFriendlyErrorMessage(error: Throwable): String {
-        val rawMessage = error.message.orEmpty()
-        val message = rawMessage.lowercase()
-
-        return when {
-            message.contains("failed to connect") ||
-                message.contains("connection refused") ||
-                message.contains("connectexception") -> {
-                "Der Backend-Dienst ist nicht erreichbar. Bitte starte den FastAPI-Server und prüfe http://10.0.2.2:8000."
-            }
-
-            message.contains("timeout") ||
-                message.contains("timed out") ||
-                message.contains("sockettimeoutexception") -> {
-                "Die Anfrage hat zu lange gedauert. Bitte versuche es erneut oder reduziere den Radius."
-            }
-
-            message.contains("unable to resolve host") ||
-                message.contains("unknownhostexception") -> {
-                "Es besteht ein Netzwerkproblem. Bitte prüfe die Internetverbindung des Emulators."
-            }
-
-            message.contains("http 422") ||
-                message.contains("planning_error") -> {
-                "Die Suchanfrage konnte nicht in einen gültigen Suchplan übersetzt werden. Bitte formuliere sie einfacher."
-            }
-
-            message.contains("geocoding") ||
-                message.contains("nominatim") -> {
-                "Der eingegebene Ort konnte nicht zuverlässig gefunden werden. Bitte verwende einen genaueren Ortsnamen."
-            }
-
-            message.contains("overpass") ||
-                message.contains("http 502") ||
-                message.contains("http 504") -> {
-                "Die OpenStreetMap-Abfrage konnte momentan nicht ausgeführt werden. Bitte versuche es später erneut oder reduziere den Radius."
-            }
-
-            message.contains("http 429") ||
-                message.contains("rate") -> {
-                "Es wurden zu viele Anfragen gestellt. Bitte warte kurz und versuche es erneut."
-            }
-
-            rawMessage.isBlank() -> {
-                "Es ist ein unbekannter Fehler aufgetreten. Bitte versuche es erneut."
-            }
-
-            else -> {
-                "Die Anfrage konnte nicht verarbeitet werden. Bitte prüfe Suchanfrage, Ort und Radius."
-            }
+    private fun showError(error: Throwable) {
+        _uiState.update { state ->
+            state.copy(
+                errorMessage = ErrorMessageMapper.fromThrowable(error),
+                isLoading = false,
+            )
         }
     }
 }
