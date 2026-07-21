@@ -1,8 +1,9 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
 from app.api.routes.search import router as search_router
+from app.api.routes.routing import router as routing_router
 from app.core.config import get_settings
 
 
@@ -45,3 +46,4 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+app.include_router(routing_router, prefix="/api/v1/routing", tags=["routing"])
