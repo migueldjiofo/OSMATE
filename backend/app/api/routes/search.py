@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 
 from app.agent.planner import PlanningError, create_agent_plan
@@ -101,6 +101,15 @@ async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONRe
 
         features = geojson.get("features", [])
 
+        execution_steps = [
+            "Suchanfrage empfangen.",
+            f"AgentPlan mit Planner '{agent_plan.planner_type}' erstellt.",
+            "Overpass-QL aus AgentPlan erzeugt.",
+            "Overpass-API ausgefuehrt.",
+            "OpenStreetMap-Rohdaten in GeoJSON umgewandelt.",
+            "Suchantwort fuer Android-App erstellt.",
+        ]
+
         return SearchResponse(
             original_query=request_data.query,
             agent_plan=agent_plan,
@@ -108,7 +117,16 @@ async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONRe
             geojson=geojson,
             result_count=len(features),
             warnings=agent_plan.warnings,
+            execution_steps=execution_steps,
         )
+        execution_steps = [
+            "Suchanfrage empfangen.",
+            f"AgentPlan mit Planner '{agent_plan.planner_type}' erstellt.",
+            "Overpass-QL aus AgentPlan erzeugt.",
+            "Overpass-API ausgefuehrt.",
+            "OpenStreetMap-Rohdaten in GeoJSON umgewandelt.",
+            "Suchantwort fuer Android-App erstellt.",
+    ]
 
     except (PlanningError, PlanValidationError, OverpassBuildError) as exc:
         return _planning_error_response(exc)

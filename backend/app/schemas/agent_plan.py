@@ -25,4 +25,5 @@ class AgentPlan(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     summary_de: str
     planner_type: Literal["rule_based"] = "rule_based"
+    planner_steps: list[str] = Field(default_factory=list)
     llm_fallback_recommended: bool = False
