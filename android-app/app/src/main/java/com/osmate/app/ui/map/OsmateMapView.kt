@@ -73,6 +73,7 @@ fun OsmateMapView(
     selectedLongitude: Double?,
     userLatitude: Double?,
     userLongitude: Double?,
+    userLocationFocusRequest: Int,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -84,6 +85,10 @@ fun OsmateMapView(
 
     val lastCenteredSelectedKey = remember {
         mutableStateOf<String?>(null)
+    }
+
+    val lastCenteredUserLocationFocusRequest = remember {
+        mutableStateOf(-1)
     }
 
     val mapView = remember {
@@ -236,12 +241,19 @@ fun OsmateMapView(
                     selectedLatitude = selectedLatitude,
                     selectedLongitude = selectedLongitude,
                     lastCenteredGeoJson = lastCenteredGeoJson.value,
+                    userLatitude = userLatitude,
+                    userLongitude = userLongitude,
+                    userLocationFocusRequest = userLocationFocusRequest,
                     lastCenteredSelectedKey = lastCenteredSelectedKey.value,
+                    lastCenteredUserLocationFocusRequest = lastCenteredUserLocationFocusRequest.value,
                     onGeoJsonCentered = { centeredGeoJson ->
                         lastCenteredGeoJson.value = centeredGeoJson
                     },
                     onSelectedCentered = { selectedKey ->
                         lastCenteredSelectedKey.value = selectedKey
+                    },
+                    onUserLocationCentered = { focusRequest ->
+                        lastCenteredUserLocationFocusRequest.value = focusRequest
                     },
                 )
             }
@@ -255,10 +267,15 @@ private fun updateCameraIfNeeded(
     geoJson: String,
     selectedLatitude: Double?,
     selectedLongitude: Double?,
+    userLatitude: Double?,
+    userLongitude: Double?,
+    userLocationFocusRequest: Int,
     lastCenteredGeoJson: String?,
     lastCenteredSelectedKey: String?,
+    lastCenteredUserLocationFocusRequest: Int,
     onGeoJsonCentered: (String) -> Unit,
     onSelectedCentered: (String?) -> Unit,
+    onUserLocationCentered: (Int) -> Unit,
 ) {
     val selectedKey = createSelectedKey(
         latitude = selectedLatitude,
@@ -273,6 +290,21 @@ private fun updateCameraIfNeeded(
         )
 
         onSelectedCentered(selectedKey)
+        return
+    }
+
+    if (
+        userLatitude != null &&
+        userLongitude != null &&
+        userLocationFocusRequest != lastCenteredUserLocationFocusRequest
+    ) {
+        centerMapOnUserLocation(
+            map = map,
+            latitude = userLatitude,
+            longitude = userLongitude,
+        )
+
+        onUserLocationCentered(userLocationFocusRequest)
         return
     }
 
@@ -498,6 +530,22 @@ private fun moveToDefaultLocation(map: MapLibreMap) {
 }
 
 private fun centerMapOnSelectedResult(
+    map: MapLibreMap,
+    latitude: Double,
+    longitude: Double,
+) {
+    map.animateCamera(
+        CameraUpdateFactory.newLatLngZoom(
+            LatLng(
+                latitude,
+                longitude,
+            ),
+            17.0,
+        ),
+    )
+}
+
+private fun centerMapOnUserLocation(
     map: MapLibreMap,
     latitude: Double,
     longitude: Double,

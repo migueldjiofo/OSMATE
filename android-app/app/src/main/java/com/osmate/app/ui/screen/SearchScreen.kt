@@ -5,7 +5,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -27,8 +30,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -36,6 +41,10 @@ import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.domain.location.UserLocation
 import com.osmate.app.ui.map.OsmateMapView
 import com.osmate.app.ui.state.SearchUiState
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
 @Composable
 fun SearchScreen(
@@ -51,11 +60,34 @@ fun SearchScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     val userLocation = remember {
         mutableStateOf<UserLocation?>(null)
     }
+
+    val userLocationFocusRequest = remember {
+        mutableIntStateOf(0)
+    }
+
     val locationStatus = remember {
         mutableStateOf("")
+    }
+
+    fun updateUserLocation() {
+        coroutineScope.launch {
+            locationStatus.value = "Standort wird ermittelt..."
+
+            val location = loadFreshCurrentLocation(context)
+
+            if (location != null) {
+                userLocation.value = location
+                userLocationFocusRequest.intValue += 1
+                locationStatus.value = buildLocationStatus(location)
+            } else {
+                locationStatus.value = "Keine aktuelle Position verfügbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
+            }
+        }
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -65,14 +97,7 @@ fun SearchScreen(
         val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
         if (fineGranted || coarseGranted) {
-            val location = loadCurrentLocation(context)
-
-            if (location != null) {
-                userLocation.value = location
-                locationStatus.value = buildLocationStatus(location)
-            } else {
-                locationStatus.value = "Standortberechtigung erteilt, aber noch keine aktuelle Position verfügbar."
-            }
+            updateUserLocation()
         } else {
             locationStatus.value = "Standortberechtigung wurde nicht erteilt."
         }
@@ -160,14 +185,7 @@ fun SearchScreen(
             OutlinedButton(
                 onClick = {
                     if (hasLocationPermission(context)) {
-                        val location = loadCurrentLocation(context)
-
-                        if (location != null) {
-                            userLocation.value = location
-                            locationStatus.value = buildLocationStatus(location)
-                        } else {
-                            locationStatus.value = "Keine aktuelle Position verfügbar. Bitte GPS aktivieren und erneut versuchen."
-                        }
+                        updateUserLocation()
                     } else {
                         locationPermissionLauncher.launch(
                             arrayOf(
@@ -189,6 +207,7 @@ fun SearchScreen(
             selectedLongitude = state.selectedLongitude,
             userLatitude = userLocation.value?.latitude,
             userLongitude = userLocation.value?.longitude,
+            userLocationFocusRequest = userLocationFocusRequest.intValue,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),
@@ -381,7 +400,7 @@ private fun hasLocationPermission(context: Context): Boolean {
 }
 
 @SuppressLint("MissingPermission")
-private fun loadCurrentLocation(context: Context): UserLocation? {
+private suspend fun loadFreshCurrentLocation(context: Context): UserLocation? {
     if (!hasLocationPermission(context)) {
         return null
     }
@@ -394,19 +413,86 @@ private fun loadCurrentLocation(context: Context): UserLocation? {
         LocationManager.GPS_PROVIDER,
         LocationManager.NETWORK_PROVIDER,
         LocationManager.PASSIVE_PROVIDER,
+    ).filter { provider ->
+        locationManager.isProviderEnabled(provider)
+    }
+
+    val freshLocation = providers.firstNotNullOfOrNull { provider ->
+        withTimeoutOrNull(6000L) {
+            requestSingleLocationUpdate(
+                locationManager = locationManager,
+                provider = provider,
+            )
+        }
+    }
+
+    return freshLocation?.toUserLocation()
+        ?: loadLastKnownLocation(locationManager)?.toUserLocation()
+}
+
+@SuppressLint("MissingPermission")
+private suspend fun requestSingleLocationUpdate(
+    locationManager: LocationManager,
+    provider: String,
+): Location? {
+    return suspendCancellableCoroutine { continuation ->
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                locationManager.removeUpdates(this)
+
+                if (continuation.isActive) {
+                    continuation.resume(location)
+                }
+            }
+
+            override fun onProviderDisabled(provider: String) = Unit
+
+            override fun onProviderEnabled(provider: String) = Unit
+
+            override fun onStatusChanged(
+                provider: String?,
+                status: Int,
+                extras: Bundle?,
+            ) = Unit
+        }
+
+        runCatching {
+            locationManager.requestLocationUpdates(
+                provider,
+                0L,
+                0.0f,
+                listener,
+                Looper.getMainLooper(),
+            )
+        }.onFailure {
+            locationManager.removeUpdates(listener)
+
+            if (continuation.isActive) {
+                continuation.resume(null)
+            }
+        }
+
+        continuation.invokeOnCancellation {
+            locationManager.removeUpdates(listener)
+        }
+    }
+}
+
+@SuppressLint("MissingPermission")
+private fun loadLastKnownLocation(locationManager: LocationManager): Location? {
+    val providers = listOf(
+        LocationManager.GPS_PROVIDER,
+        LocationManager.NETWORK_PROVIDER,
+        LocationManager.PASSIVE_PROVIDER,
     )
 
-    val locations = providers.mapNotNull { provider ->
+    return providers.mapNotNull { provider ->
         runCatching {
             locationManager.getLastKnownLocation(provider)
         }.getOrNull()
-    }
-
-    val newestLocation = locations.maxByOrNull { location ->
+    }.maxByOrNull { location ->
         location.time
-    } ?: return null
-
-    return newestLocation.toUserLocation()
+    }
 }
 
 private fun Location.toUserLocation(): UserLocation {
