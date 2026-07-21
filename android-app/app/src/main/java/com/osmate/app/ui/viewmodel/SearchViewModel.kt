@@ -2,6 +2,7 @@ package com.osmate.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.osmate.app.data.model.SearchResult
 import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.data.repository.SearchRepository
 import com.osmate.app.domain.navigation.TravelMode
@@ -64,6 +65,7 @@ class SearchViewModel(
                 routeWarnings = emptyList(),
                 errorMessage = "",
                 isLoading = false,
+                isRouteLoading = false,
             )
         }
     }
@@ -75,6 +77,11 @@ class SearchViewModel(
                 selectedResultTitle = item.title,
                 selectedLatitude = item.latitude,
                 selectedLongitude = item.longitude,
+                routeGeoJson = "",
+                routeDistanceText = "",
+                routeDurationText = "",
+                routeProvider = "",
+                routeWarnings = emptyList(),
             )
         }
     }
@@ -98,6 +105,7 @@ class SearchViewModel(
                 routeWarnings = emptyList(),
                 errorMessage = "",
                 isLoading = false,
+                isRouteLoading = false,
             )
         }
     }
@@ -154,11 +162,12 @@ class SearchViewModel(
                     selectedResultTitle = "",
                     selectedLatitude = null,
                     selectedLongitude = null,
-                routeGeoJson = "",
-                routeDistanceText = "",
-                routeDurationText = "",
-                routeProvider = "",
-                routeWarnings = emptyList(),
+                    routeGeoJson = "",
+                    routeDistanceText = "",
+                    routeDurationText = "",
+                    routeProvider = "",
+                    routeWarnings = emptyList(),
+                    isRouteLoading = false,
                 )
             }
 
@@ -166,40 +175,91 @@ class SearchViewModel(
                 repository.search(
                     query = validation.query,
                     placeName = validation.placeName,
-                    radiusM = validation.radiusM,
+                    latitude = null,
+                    longitude = null,
+                    radiusMeters = validation.radiusM,
+                    limit = 20,
                 )
             }.onSuccess { result ->
-                val plan = result.plan
-                val tags = plan.osmTags.entries.joinToString(
-                    separator = ", ",
-                ) { entry ->
-                    "${entry.key}=${entry.value}"
-                }
-
-                _uiState.update { state ->
-                    state.copy(
-                        resultText = """
-                            Kategorie: ${plan.category}
-                            Tags: $tags
-                            Treffer: ${result.resultCount}
-                            Radius: ${plan.radiusM} m
-                            Confidence: ${plan.confidenceScore}
-                            Planner: ${plan.plannerType}
-                            Summary: ${plan.summary}
-                        """.trimIndent(),
-                        resultCount = result.resultCount,
-                        geoJson = result.geoJson,
-                        resultItems = result.items,
-                        errorMessage = "",
-                        isLoading = false,
-                    )
-                }
+                applySearchResult(result)
             }.onFailure { error ->
                 showError(error)
             }
         }
     }
 
+    fun searchFromCurrentLocation(latitude: Double?, longitude: Double?) {
+        if (latitude == null || longitude == null) {
+            _uiState.update { state ->
+                state.copy(
+                    errorMessage = "Bitte ermittle zuerst deine aktuelle Position.",
+                    isLoading = false,
+                )
+            }
+            return
+        }
+
+        val currentState = _uiState.value
+        val radiusMeters = currentState.radiusM.toIntOrNull()
+
+        if (currentState.query.isBlank()) {
+            _uiState.update { state ->
+                state.copy(
+                    errorMessage = "Bitte gib zuerst eine Suchanfrage ein.",
+                    isLoading = false,
+                )
+            }
+            return
+        }
+
+        if (radiusMeters == null || radiusMeters <= 0) {
+            _uiState.update { state ->
+                state.copy(
+                    errorMessage = "Bitte gib einen gueltigen Radius ein.",
+                    isLoading = false,
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = true,
+                    errorMessage = "",
+                    resultText = "",
+                    resultCount = 0,
+                    geoJson = "",
+                    resultItems = emptyList(),
+                    selectedResult = null,
+                    selectedResultTitle = "",
+                    selectedLatitude = null,
+                    selectedLongitude = null,
+                    routeGeoJson = "",
+                    routeDistanceText = "",
+                    routeDurationText = "",
+                    routeProvider = "",
+                    routeWarnings = emptyList(),
+                    isRouteLoading = false,
+                )
+            }
+
+            runCatching {
+                repository.search(
+                    query = currentState.query,
+                    placeName = null,
+                    latitude = latitude,
+                    longitude = longitude,
+                    radiusMeters = radiusMeters,
+                    limit = 20,
+                )
+            }.onSuccess { result ->
+                applySearchResult(result)
+            }.onFailure { error ->
+                showError(error)
+            }
+        }
+    }
 
     fun calculateRoute(
         startLatitude: Double?,
@@ -216,7 +276,7 @@ class SearchViewModel(
         ) {
             _uiState.update { state ->
                 state.copy(
-                    errorMessage = "Für die Route werden aktuelle Position und Zielkoordinate benötigt.",
+                    errorMessage = "Fuer die Route werden aktuelle Position und Zielkoordinate benoetigt.",
                     isRouteLoading = false,
                 )
             }
@@ -261,6 +321,35 @@ class SearchViewModel(
             }
         }
     }
+
+    private fun applySearchResult(result: SearchResult) {
+        val plan = result.plan
+        val tags = plan.osmTags.entries.joinToString(
+            separator = ", ",
+        ) { entry ->
+            "${entry.key}=${entry.value}"
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                resultText = """
+                    Kategorie: ${plan.category}
+                    Tags: $tags
+                    Treffer: ${result.resultCount}
+                    Radius: ${plan.radiusM} m
+                    Confidence: ${plan.confidenceScore}
+                    Planner: ${plan.plannerType}
+                    Summary: ${plan.summary}
+                """.trimIndent(),
+                resultCount = result.resultCount,
+                geoJson = result.geoJson,
+                resultItems = result.items,
+                errorMessage = "",
+                isLoading = false,
+            )
+        }
+    }
+
     private fun showValidationError(message: String) {
         _uiState.update { state ->
             state.copy(

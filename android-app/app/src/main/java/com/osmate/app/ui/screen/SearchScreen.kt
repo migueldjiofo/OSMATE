@@ -60,6 +60,7 @@ fun SearchScreen(
     onExampleClick: (String, String, String) -> Unit,
     onResultClick: (SearchResultItem) -> Unit,
     onCalculateRouteClick: (Double?, Double?, Double?, Double?, TravelMode) -> Unit,
+	onSearchFromCurrentLocationClick: (Double?, Double?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -192,6 +193,18 @@ fun SearchScreen(
             ) {
                 Text("Zur\u00fccksetzen")
             }
+			
+			OutlinedButton(
+				onClick = {
+					onSearchFromCurrentLocationClick(
+						userLocation.value?.latitude,
+						userLocation.value?.longitude,
+					)
+				},
+				enabled = !state.isLoading,
+			) {
+				Text("In meiner Naehe suchen")
+			}
 
             OutlinedButton(
                 onClick = {

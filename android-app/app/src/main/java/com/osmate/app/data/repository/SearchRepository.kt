@@ -13,13 +13,19 @@ class SearchRepository(
 
     suspend fun search(
         query: String,
-        placeName: String,
-        radiusM: Int,
+        placeName: String?,
+        latitude: Double?,
+        longitude: Double?,
+        radiusMeters: Int,
+        limit: Int,
     ): SearchResult {
         return apiClient.search(
             query = query,
             placeName = placeName,
-            radiusM = radiusM,
+            latitude = latitude,
+            longitude = longitude,
+            radiusMeters = radiusMeters,
+            limit = limit,
         )
     }
 

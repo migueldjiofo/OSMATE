@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
                     onResultClick = viewModel::selectResult,
                     onCalculateRouteClick = viewModel::calculateRoute,
                     modifier = Modifier.safeDrawingPadding(),
+					onSearchFromCurrentLocationClick = viewModel::searchFromCurrentLocation,
                 )
             }
         }

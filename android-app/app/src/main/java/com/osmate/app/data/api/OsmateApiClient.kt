@@ -26,15 +26,25 @@ class OsmateApiClient(
 
     suspend fun search(
         query: String,
-        placeName: String,
-        radiusM: Int,
+		placeName: String?,
+		latitude: Double?,
+		longitude: Double?,
+		radiusMeters: Int,
+		limit: Int,
     ): SearchResult = withContext(Dispatchers.IO) {
-        val requestBody = JSONObject()
-            .put("query", query)
-            .put("place_name", placeName)
-            .put("radius_m", radiusM)
-            .put("limit", 30)
-            .put("language", "de")
+        val requestBody = JSONObject().apply {
+			put("query", query)
+			put("radius_m", radiusMeters)
+			put("limit", limit)
+			put("language", "de")
+
+			if (latitude != null && longitude != null) {
+				put("lat", latitude)
+				put("lon", longitude)
+			} else if (!placeName.isNullOrBlank()) {
+				put("place_name", placeName)
+			}
+		}
 
         val response = executeRequest(
             path = "/api/v1/search",
