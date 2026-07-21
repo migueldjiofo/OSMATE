@@ -1,5 +1,13 @@
 package com.osmate.app.ui.screen
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,9 +27,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.osmate.app.data.model.SearchResultItem
+import com.osmate.app.domain.location.UserLocation
 import com.osmate.app.ui.map.OsmateMapView
 import com.osmate.app.ui.state.SearchUiState
 
@@ -38,6 +50,34 @@ fun SearchScreen(
     onResultClick: (SearchResultItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val userLocation = remember {
+        mutableStateOf<UserLocation?>(null)
+    }
+    val locationStatus = remember {
+        mutableStateOf("")
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        if (fineGranted || coarseGranted) {
+            val location = loadCurrentLocation(context)
+
+            if (location != null) {
+                userLocation.value = location
+                locationStatus.value = buildLocationStatus(location)
+            } else {
+                locationStatus.value = "Standortberechtigung erteilt, aber noch keine aktuelle Position verfügbar."
+            }
+        } else {
+            locationStatus.value = "Standortberechtigung wurde nicht erteilt."
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -107,21 +147,59 @@ fun SearchScreen(
             }
         }
 
-        OutlinedButton(
-            onClick = onResetClick,
-            enabled = !state.isLoading,
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Zur\u00fccksetzen")
+            OutlinedButton(
+                onClick = onResetClick,
+                enabled = !state.isLoading,
+            ) {
+                Text("Zur\u00fccksetzen")
+            }
+
+            OutlinedButton(
+                onClick = {
+                    if (hasLocationPermission(context)) {
+                        val location = loadCurrentLocation(context)
+
+                        if (location != null) {
+                            userLocation.value = location
+                            locationStatus.value = buildLocationStatus(location)
+                        } else {
+                            locationStatus.value = "Keine aktuelle Position verfügbar. Bitte GPS aktivieren und erneut versuchen."
+                        }
+                    } else {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            ),
+                        )
+                    }
+                },
+                enabled = !state.isLoading,
+            ) {
+                Text("Meine Position")
+            }
         }
 
         OsmateMapView(
             geoJson = state.geoJson,
             selectedLatitude = state.selectedLatitude,
             selectedLongitude = state.selectedLongitude,
+            userLatitude = userLocation.value?.latitude,
+            userLongitude = userLocation.value?.longitude,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),
         )
+
+        if (locationStatus.value.isNotBlank()) {
+            InfoCard(
+                title = "Standort",
+                body = locationStatus.value,
+            )
+        }
 
         if (state.isLoading) {
             LoadingCard()
@@ -263,6 +341,7 @@ private fun ErrorCard(
         }
     }
 }
+
 @Composable
 private fun InfoCard(
     title: String,
@@ -287,6 +366,68 @@ private fun InfoCard(
             )
         }
     }
+}
+
+private fun hasLocationPermission(context: Context): Boolean {
+    val fineLocationGranted = context.checkSelfPermission(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    val coarseLocationGranted = context.checkSelfPermission(
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    return fineLocationGranted || coarseLocationGranted
+}
+
+@SuppressLint("MissingPermission")
+private fun loadCurrentLocation(context: Context): UserLocation? {
+    if (!hasLocationPermission(context)) {
+        return null
+    }
+
+    val locationManager = context.getSystemService(
+        Context.LOCATION_SERVICE,
+    ) as? LocationManager ?: return null
+
+    val providers = listOf(
+        LocationManager.GPS_PROVIDER,
+        LocationManager.NETWORK_PROVIDER,
+        LocationManager.PASSIVE_PROVIDER,
+    )
+
+    val locations = providers.mapNotNull { provider ->
+        runCatching {
+            locationManager.getLastKnownLocation(provider)
+        }.getOrNull()
+    }
+
+    val newestLocation = locations.maxByOrNull { location ->
+        location.time
+    } ?: return null
+
+    return newestLocation.toUserLocation()
+}
+
+private fun Location.toUserLocation(): UserLocation {
+    return UserLocation(
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracy,
+        provider = provider,
+    )
+}
+
+private fun buildLocationStatus(location: UserLocation): String {
+    val accuracyText = location.accuracyMeters?.let { accuracy ->
+        "Genauigkeit: ${accuracy.toInt()} m"
+    } ?: "Genauigkeit: unbekannt"
+
+    val providerText = location.provider?.let { provider ->
+        "Quelle: $provider"
+    } ?: "Quelle: unbekannt"
+
+    return "Aktuelle Position: ${location.latitude}, ${location.longitude}\n$accuracyText\n$providerText"
 }
 
 private data class SearchExample(

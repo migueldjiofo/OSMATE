@@ -36,6 +36,9 @@ private const val RESULT_CIRCLE_LAYER_ID = "osmate-search-results-circle-layer"
 private const val SELECTED_SOURCE_ID = "osmate-selected-result-source"
 private const val SELECTED_CIRCLE_LAYER_ID = "osmate-selected-result-circle-layer"
 
+private const val USER_SOURCE_ID = "osmate-user-location-source"
+private const val USER_CIRCLE_LAYER_ID = "osmate-user-location-circle-layer"
+
 private const val EMPTY_FEATURE_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
 
 private val DEFAULT_LOCATION = LatLng(52.521918, 13.413215)
@@ -68,6 +71,8 @@ fun OsmateMapView(
     geoJson: String,
     selectedLatitude: Double?,
     selectedLongitude: Double?,
+    userLatitude: Double?,
+    userLongitude: Double?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -109,6 +114,12 @@ fun OsmateMapView(
                     )
 
                     addOrUpdateSelectedResult(
+                        style = style,
+                        latitude = null,
+                        longitude = null,
+                    )
+
+                    addOrUpdateUserLocation(
                         style = style,
                         latitude = null,
                         longitude = null,
@@ -211,6 +222,12 @@ fun OsmateMapView(
                     style = style,
                     latitude = selectedLatitude,
                     longitude = selectedLongitude,
+                )
+
+                addOrUpdateUserLocation(
+                    style = style,
+                    latitude = userLatitude,
+                    longitude = userLongitude,
                 )
 
                 updateCameraIfNeeded(
@@ -381,6 +398,73 @@ private fun createSelectedPointGeoJson(
           "type": "Feature",
           "properties": {
             "selected": true
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [$longitude, $latitude]
+          }
+        }
+      ]
+    }
+    """.trimIndent()
+}
+
+private fun addOrUpdateUserLocation(
+    style: Style,
+    latitude: Double?,
+    longitude: Double?,
+) {
+    val userGeoJson = createUserLocationGeoJson(
+        latitude = latitude,
+        longitude = longitude,
+    )
+
+    val featureCollection = parseFeatureCollection(userGeoJson)
+    val source = style.getSource(USER_SOURCE_ID) as? GeoJsonSource
+
+    if (source == null) {
+        style.addSource(
+            GeoJsonSource(
+                USER_SOURCE_ID,
+                featureCollection,
+            ),
+        )
+    } else {
+        source.setGeoJson(featureCollection)
+    }
+
+    if (style.getLayer(USER_CIRCLE_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(
+                USER_CIRCLE_LAYER_ID,
+                USER_SOURCE_ID,
+            ).withProperties(
+                circleRadius(11.0f),
+                circleColor(Color.parseColor("#00A86B")),
+                circleStrokeColor(Color.WHITE),
+                circleStrokeWidth(4.0f),
+                circleOpacity(0.95f),
+            ),
+        )
+    }
+}
+
+private fun createUserLocationGeoJson(
+    latitude: Double?,
+    longitude: Double?,
+): String {
+    if (latitude == null || longitude == null) {
+        return EMPTY_FEATURE_COLLECTION
+    }
+
+    return """
+    {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "user_location": true
           },
           "geometry": {
             "type": "Point",
