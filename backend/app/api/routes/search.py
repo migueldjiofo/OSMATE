@@ -11,6 +11,7 @@ from app.schemas.search_response import SearchResponse
 from app.services.geojson_service import convert_overpass_to_geojson
 from app.services.nominatim_client import NominatimClientError
 from app.services.overpass_builder import OverpassBuildError, build_overpass_query
+from app.services.overpass_validator import validate_or_correct_overpass_query
 from app.services.overpass_client import (
     OverpassClientError,
     OverpassRateLimitError,
@@ -96,6 +97,25 @@ async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONRe
         resolved_request = await resolve_spatial_context(request_data)
         agent_plan = create_agent_plan(resolved_request)
         overpass_ql = build_overpass_query(agent_plan)
+
+        validation_result = validate_or_correct_overpass_query(overpass_ql)
+
+        if not validation_result.is_valid:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "code": "overpass_validation_error",
+                    "message": "Die generierte Overpass-QL-Anfrage konnte nicht validiert werden.",
+                    "details": validation_result.errors,
+                },
+            )
+
+        if validation_result.corrected_query:
+            overpass_ql = validation_result.corrected_query
+            agent_plan.warnings.append(
+                "Die generierte Overpass-QL-Anfrage wurde vor der Ausfuehrung automatisch korrigiert."
+            )
+
         overpass_payload = await execute_overpass_query(overpass_ql)
         geojson = convert_overpass_to_geojson(overpass_payload)
 
@@ -105,6 +125,7 @@ async def execute_search(request_data: SearchRequest) -> SearchResponse | JSONRe
             "Suchanfrage empfangen.",
             f"AgentPlan mit Planner '{agent_plan.planner_type}' erstellt.",
             "Overpass-QL aus AgentPlan erzeugt.",
+            "Overpass-QL validiert.",
             "Overpass-API ausgefuehrt.",
             "OpenStreetMap-Rohdaten in GeoJSON umgewandelt.",
             "Suchantwort fuer Android-App erstellt.",
