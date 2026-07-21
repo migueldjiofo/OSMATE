@@ -174,6 +174,7 @@ class OsmateApiClient(
             val subtitle = readSubtitle(properties)
             val openingHours = properties.optString("opening_hours").trim()
             val coordinate = readPointCoordinate(geometry)
+            val allTags = jsonObjectToMap(properties)
 
             items += SearchResultItem(
                 title = title,
@@ -182,6 +183,20 @@ class OsmateApiClient(
                 openingHours = openingHours,
                 latitude = coordinate?.first,
                 longitude = coordinate?.second,
+                cuisine = properties.optString("cuisine").trim(),
+                website = properties.optString("website").trim().ifBlank {
+                    properties.optString("contact:website").trim()
+                },
+                phone = properties.optString("phone").trim().ifBlank {
+                    properties.optString("contact:phone").trim()
+                },
+                brand = properties.optString("brand").trim(),
+                operator = properties.optString("operator").trim(),
+                outdoorSeating = properties.optString("outdoor_seating").trim(),
+                internetAccess = properties.optString("internet_access").trim(),
+                wheelchair = properties.optString("wheelchair").trim(),
+                takeaway = properties.optString("takeaway").trim(),
+                allTags = allTags,
             )
         }
 

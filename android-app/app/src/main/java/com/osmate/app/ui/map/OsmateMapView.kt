@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -82,6 +83,7 @@ fun OsmateMapView(
     userLatitude: Double?,
     userLongitude: Double?,
     userLocationFocusRequest: Int,
+    onSelectedPointClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -98,6 +100,8 @@ fun OsmateMapView(
     val lastCenteredUserLocationFocusRequest = remember {
         mutableStateOf(-1)
     }
+
+    val selectedPointClickHandler = rememberUpdatedState(onSelectedPointClick)
 
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
@@ -120,6 +124,21 @@ fun OsmateMapView(
             }
 
             getMapAsync { map ->
+                map.addOnMapClickListener { latLng ->
+                    val screenPoint = map.projection.toScreenLocation(latLng)
+                    val selectedFeatures = map.queryRenderedFeatures(
+                        screenPoint,
+                        SELECTED_CIRCLE_LAYER_ID,
+                    )
+
+                    if (selectedFeatures.isNotEmpty()) {
+                        selectedPointClickHandler.value()
+                        true
+                    } else {
+                        false
+                    }
+                }
+
                 map.setStyle(Style.Builder().fromJson(OSM_RASTER_STYLE)) { style ->
                     addOrUpdateSearchResults(
                         style = style,

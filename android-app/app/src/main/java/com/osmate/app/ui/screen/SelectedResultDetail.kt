@@ -78,6 +78,10 @@ fun SelectedResultDetail(
                 )
             }
 
+            PlaceMetadataSection(
+                item = item,
+            )
+
             CoordinateSection(
                 item = item,
                 onOpenInOpenStreetMap = { latitude, longitude ->
@@ -354,4 +358,38 @@ private fun openUrl(
 
 private fun formatCoordinate(value: Double): String {
     return "%.5f".format(value)
+}
+@Composable
+private fun PlaceMetadataSection(
+    item: SearchResultItem,
+) {
+    val details = listOf(
+        "K\u00fcche" to item.cuisine,
+        "Website" to item.website,
+        "Telefon" to item.phone,
+        "Marke" to item.brand,
+        "Betreiber" to item.operator,
+        "Terrasse" to item.outdoorSeating,
+        "WLAN" to item.internetAccess,
+        "Barrierefreiheit" to item.wheelchair,
+        "Take-away" to item.takeaway,
+    ).filter { detail ->
+        detail.second.isNotBlank()
+    }
+
+    if (details.isEmpty()) {
+        return
+    }
+
+    Text(
+        text = "Details",
+        style = MaterialTheme.typography.titleSmall,
+    )
+
+    details.forEach { detail ->
+        Text(
+            text = "${detail.first}: ${detail.second}",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }

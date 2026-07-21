@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -80,6 +81,10 @@ fun SearchScreen(
         mutableStateOf(TravelMode.Walking)
     }
 
+    val showSelectedPlacePopup = remember {
+        mutableStateOf(false)
+    }
+
     fun updateUserLocation() {
         coroutineScope.launch {
             locationStatus.value = "Standort wird ermittelt..."
@@ -91,7 +96,7 @@ fun SearchScreen(
                 userLocationFocusRequest.intValue += 1
                 locationStatus.value = buildLocationStatus(location)
             } else {
-                locationStatus.value = "Keine aktuelle Position verfÃƒÂ¼gbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
+                locationStatus.value = "Keine aktuelle Position verfÃƒÆ’Ã‚Â¼gbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
             }
         }
     }
@@ -215,6 +220,11 @@ fun SearchScreen(
             userLatitude = userLocation.value?.latitude,
             userLongitude = userLocation.value?.longitude,
             userLocationFocusRequest = userLocationFocusRequest.intValue,
+            onSelectedPointClick = {
+                if (state.selectedResult != null) {
+                    showSelectedPlacePopup.value = true
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(280.dp),
