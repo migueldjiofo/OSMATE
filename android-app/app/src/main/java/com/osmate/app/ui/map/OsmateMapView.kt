@@ -103,6 +103,9 @@ fun OsmateMapView(
 
     val selectedPointClickHandler = rememberUpdatedState(onSelectedPointClick)
 
+    val currentSelectedLatitude = rememberUpdatedState(selectedLatitude)
+    val currentSelectedLongitude = rememberUpdatedState(selectedLongitude)
+
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
 
@@ -132,6 +135,22 @@ fun OsmateMapView(
                     )
 
                     if (selectedFeatures.isNotEmpty()) {
+                        selectedPointClickHandler.value()
+                        true
+                    } else {
+                        false
+                    }
+                }
+
+                map.addOnMapClickListener { clickedLocation ->
+                    val isNearSelectedPoint = isClickNearSelectedPoint(
+                        map = map,
+                        clickedLocation = clickedLocation,
+                        selectedLatitude = currentSelectedLatitude.value,
+                        selectedLongitude = currentSelectedLongitude.value,
+                    )
+
+                    if (isNearSelectedPoint) {
                         selectedPointClickHandler.value()
                         true
                     } else {
@@ -301,6 +320,33 @@ fun OsmateMapView(
     )
 }
 
+
+private fun isClickNearSelectedPoint(
+    map: MapLibreMap,
+    clickedLocation: LatLng,
+    selectedLatitude: Double?,
+    selectedLongitude: Double?,
+): Boolean {
+    if (selectedLatitude == null || selectedLongitude == null) {
+        return false
+    }
+
+    val clickedPoint = map.projection.toScreenLocation(clickedLocation)
+    val selectedPoint = map.projection.toScreenLocation(
+        LatLng(
+            selectedLatitude,
+            selectedLongitude,
+        ),
+    )
+
+    val deltaX = clickedPoint.x - selectedPoint.x
+    val deltaY = clickedPoint.y - selectedPoint.y
+    val distancePixels = kotlin.math.sqrt(
+        (deltaX * deltaX + deltaY * deltaY).toDouble(),
+    )
+
+    return distancePixels <= 56.0
+}
 private fun updateCameraIfNeeded(
     map: MapLibreMap,
     geoJson: String,
