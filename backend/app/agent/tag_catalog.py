@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
+from typing import Iterable
 
 
 @dataclass(frozen=True)
@@ -8,104 +11,132 @@ class CategoryRule:
     category: str
     tags: dict[str, str]
     keywords: tuple[str, ...]
-    summary_de: str
+    summary_label_de: str
+    confidence_score: float = 0.82
 
     @property
     def key(self) -> str:
         return self.category
+
+    @property
+    def osm_tags(self) -> dict[str, str]:
+        return self.tags
+
+    @property
+    def confidence(self) -> float:
+        return self.confidence_score
+
+    @property
+    def label(self) -> str:
+        return self.summary_label_de
 
 
 @dataclass(frozen=True)
 class OptionalTagRule:
     tags: dict[str, str]
     keywords: tuple[str, ...]
-    summary_de: str
+    matched_label: str
+    warning: str | None = None
 
 
 CATEGORY_RULES: tuple[CategoryRule, ...] = (
     CategoryRule(
         category="cafe",
         tags={"amenity": "cafe"},
-        keywords=("cafe", "cafes", "cafÃƒÆ’Ã‚Â©", "cafÃƒÆ’Ã‚Â©s", "kaffee", "coffee"),
-        summary_de="Es werden CafÃƒÆ’Ã‚Â©s gesucht.",
+        keywords=("cafe", "cafes", "cafÃƒÆ’Ã‚Â©", "cafÃƒÆ’Ã‚Â©s", "kaffee", "kaffeebar"),
+        summary_label_de="Cafe",
+        confidence_score=0.90,
     ),
     CategoryRule(
         category="spaeti",
         tags={"shop": "convenience"},
-        keywords=("spaeti", "spÃƒÆ’Ã‚Â¤ti", "spaetis", "spÃƒÆ’Ã‚Â¤tis", "kiosk", "convenience"),
-        summary_de="Es werden SpÃƒÆ’Ã‚Â¤tis beziehungsweise Kioske gesucht.",
+        keywords=("spaeti", "spaetis", "spati", "spatis", "spÃƒÆ’Ã‚Â¤ti", "spÃƒÆ’Ã‚Â¤tis", "kiosk", "kioske", "convenience store", "late shop"),
+        summary_label_de="SpÃƒÆ’Ã‚Â¤ti",
+        confidence_score=0.86,
     ),
     CategoryRule(
         category="restaurant",
         tags={"amenity": "restaurant"},
-        keywords=("restaurant", "restaurants", "essen", "food", "dinner", "lunch"),
-        summary_de="Es werden Restaurants gesucht.",
+        keywords=("restaurant", "restaurants", "essen", "lokal", "lokale", "imbiss"),
+        summary_label_de="Restaurant",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="supermarket",
         tags={"shop": "supermarket"},
-        keywords=("supermarkt", "supermaerkte", "supermÃƒÆ’Ã‚Â¤rkte", "supermarket", "grocery", "lebensmittel"),
-        summary_de="Es werden SupermÃƒÆ’Ã‚Â¤rkte gesucht.",
+        keywords=("supermarkt", "supermaerkte", "supermÃƒÆ’Ã‚Â¤rkte", "lebensmittel", "grocery", "supermarket", "supermarkets"),
+        summary_label_de="Supermarkt",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="playground",
         tags={"leisure": "playground"},
-        keywords=("spielplatz", "spielplÃƒÆ’Ã‚Â¤tze", "spielplaetze", "playground", "kinder"),
-        summary_de="Es werden SpielplÃƒÆ’Ã‚Â¤tze gesucht.",
+        keywords=("spielplatz", "spielplaetze", "spielplÃƒÆ’Ã‚Â¤tze", "spielplaetzen", "spielplÃƒÆ’Ã‚Â¤tzen", "playground", "playgrounds", "kinderspielplatz"),
+        summary_label_de="Spielplatz",
+        confidence_score=0.86,
     ),
     CategoryRule(
         category="park",
         tags={"leisure": "park"},
-        keywords=("park", "parks", "grÃƒÆ’Ã‚Â¼nflÃƒÆ’Ã‚Â¤che", "gruenflaeche", "green space"),
-        summary_de="Es werden Parks gesucht.",
+        keywords=("park", "parks", "gruenanlage", "grÃƒÆ’Ã‚Â¼nanlage", "garten", "gaerten", "gÃƒÆ’Ã‚Â¤rten"),
+        summary_label_de="Park",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="pharmacy",
         tags={"amenity": "pharmacy"},
-        keywords=("apotheke", "apotheken", "pharmacy"),
-        summary_de="Es werden Apotheken gesucht.",
+        keywords=("apotheke", "apotheken", "pharmacy", "pharmacies"),
+        summary_label_de="Apotheke",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="atm",
         tags={"amenity": "atm"},
-        keywords=("geldautomat", "geldautomaten", "atm", "cash"),
-        summary_de="Es werden Geldautomaten gesucht.",
+        keywords=("geldautomat", "geldautomaten", "atm", "bankautomat", "bankautomaten"),
+        summary_label_de="Geldautomat",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="bakery",
         tags={"shop": "bakery"},
-        keywords=("baeckerei", "bÃƒÆ’Ã‚Â¤ckerei", "baeckereien", "bÃƒÆ’Ã‚Â¤ckereien", "bakery", "bread", "brot"),
-        summary_de="Es werden BÃƒÆ’Ã‚Â¤ckereien gesucht.",
+        keywords=("baeckerei", "baeckereien", "bÃƒÆ’Ã‚Â¤ckerei", "bÃƒÆ’Ã‚Â¤ckereien", "backerei", "backereien", "bakery", "bakeries"),
+        summary_label_de="BÃƒÆ’Ã‚Â¤ckerei",
+        confidence_score=0.84,
     ),
     CategoryRule(
         category="library",
         tags={"amenity": "library"},
-        keywords=("bibliothek", "bibliotheken", "library", "bÃƒÆ’Ã‚Â¼cherei", "buecherei"),
-        summary_de="Es werden Bibliotheken gesucht.",
+        keywords=("bibliothek", "bibliotheken", "library", "libraries"),
+        summary_label_de="Bibliothek",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="hospital",
         tags={"amenity": "hospital"},
-        keywords=("krankenhaus", "krankenhÃƒÆ’Ã‚Â¤user", "krankenhaeuser", "hospital", "clinic", "klinik"),
-        summary_de="Es werden KrankenhÃƒÆ’Ã‚Â¤user gesucht.",
+        keywords=("krankenhaus", "krankenhaeuser", "krankenhÃƒÆ’Ã‚Â¤user", "hospital", "hospitals", "klinik", "kliniken"),
+        summary_label_de="Krankenhaus",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="school",
         tags={"amenity": "school"},
-        keywords=("schule", "schulen", "school"),
-        summary_de="Es werden Schulen gesucht.",
+        keywords=("schule", "schulen", "school", "schools"),
+        summary_label_de="Schule",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="charging_station",
         tags={"amenity": "charging_station"},
-        keywords=("ladestation", "ladestationen", "ladesaeule", "ladesÃƒÆ’Ã‚Â¤ule", "charging station", "ev charging", "elektroauto"),
-        summary_de="Es werden Ladestationen gesucht.",
+        keywords=("ladestation", "ladestationen", "ladesaeule", "ladesÃƒÆ’Ã‚Â¤ule", "ladesaeulen", "ladesÃƒÆ’Ã‚Â¤ulen", "charging station", "ev charging"),
+        summary_label_de="Ladestation",
+        confidence_score=0.82,
     ),
     CategoryRule(
         category="bus_stop",
         tags={"highway": "bus_stop"},
-        keywords=("bushaltestelle", "bushaltestellen", "bus stop", "haltestelle", "busstation"),
-        summary_de="Es werden Bushaltestellen gesucht.",
+        keywords=("bushaltestelle", "bushaltestellen", "bus stop", "bus stops", "haltestelle", "haltestellen"),
+        summary_label_de="Bushaltestelle",
+        confidence_score=0.82,
     ),
 )
 
@@ -113,117 +144,152 @@ CATEGORY_RULES: tuple[CategoryRule, ...] = (
 OPTIONAL_TAG_RULES: tuple[OptionalTagRule, ...] = (
     OptionalTagRule(
         tags={"outdoor_seating": "yes"},
-        keywords=("terrasse", "auÃƒÆ’Ã…Â¸enbereich", "aussenbereich", "outdoor seating", "sitzplÃƒÆ’Ã‚Â¤tze drauÃƒÆ’Ã…Â¸en", "sitzplaetze draussen"),
-        summary_de="mit AuÃƒÆ’Ã…Â¸enbereich",
+        keywords=("terrasse", "terasse", "aussensitzplaetze", "auÃƒÆ’Ã…Â¸ensitzplÃƒÆ’Ã‚Â¤tze", "draussen sitzen", "drauÃƒÆ’Ã…Â¸en sitzen", "outdoor seating"),
+        matched_label="outdoor_seating",
     ),
     OptionalTagRule(
         tags={"internet_access": "wlan"},
         keywords=("wlan", "wifi", "wi-fi", "internet"),
-        summary_de="mit Internetzugang",
+        matched_label="internet_access",
     ),
     OptionalTagRule(
         tags={"wheelchair": "yes"},
-        keywords=("barrierefrei", "rollstuhl", "wheelchair"),
-        summary_de="barrierefrei",
+        keywords=("barrierefrei", "rollstuhl", "wheelchair", "accessible"),
+        matched_label="wheelchair",
     ),
     OptionalTagRule(
         tags={"diet:vegan": "yes"},
-        keywords=("vegan", "vegane"),
-        summary_de="mit veganem Angebot",
+        keywords=("vegan", "veganes", "veganem", "vegane", "veganer"),
+        matched_label="diet:vegan",
     ),
     OptionalTagRule(
         tags={"takeaway": "yes"},
-        keywords=("takeaway", "mitnehmen", "zum mitnehmen"),
-        summary_de="mit Take-away-Angebot",
+        keywords=("takeaway", "mitnehmen", "zum mitnehmen", "to go"),
+        matched_label="takeaway",
     ),
     OptionalTagRule(
-        tags={"smoking": "outside"},
-        keywords=("rauchen", "smoking", "smoker"),
-        summary_de="mit ausgewiesenem Raucherbereich",
-    ),
-    OptionalTagRule(
-        tags={"playground:water": "yes"},
-        keywords=("wasserspiel", "wasserspiele", "water play", "wasserspielplatz"),
-        summary_de="mit Wasserspielen",
+        tags={"playground": "water"},
+        keywords=("wasserspiel", "wasserspiele", "wasserspielen", "wasser spielplatz", "water play", "water playground"),
+        matched_label="water_play",
     ),
 )
 
 
 UNSUPPORTED_SEMANTIC_TERMS: tuple[str, ...] = (
     "ruhig",
-    "ruhige",
     "guenstig",
     "gÃƒÆ’Ã‚Â¼nstig",
     "billig",
     "cheap",
     "preiswert",
-    "schÃƒÆ’Ã‚Â¶n",
     "schoen",
+    "schÃƒÆ’Ã‚Â¶n",
     "beliebt",
     "popular",
 )
 
 
-def normalize_text(text: str) -> str:
-    normalized = text.lower().strip()
+STOPWORDS: set[str] = {
+    "finde",
+    "finden",
+    "suche",
+    "suchen",
+    "zeige",
+    "zeig",
+    "welche",
+    "welcher",
+    "welches",
+    "mit",
+    "ohne",
+    "in",
+    "im",
+    "der",
+    "die",
+    "das",
+    "den",
+    "dem",
+    "des",
+    "von",
+    "vom",
+    "umkreis",
+    "radius",
+    "naehe",
+    "nahe",
+    "meiner",
+    "meine",
+    "mein",
+    "einem",
+    "eine",
+    "einer",
+    "meter",
+    "metern",
+    "kilometer",
+    "kilometern",
+    "km",
+    "m",
+    "und",
+    "oder",
+    "bitte",
+    "angebot",
+}
 
-    replacements = {
-        "ÃƒÆ’Ã‚Â¤": "ae",
-        "ÃƒÆ’Ã‚Â¶": "oe",
-        "ÃƒÆ’Ã‚Â¼": "ue",
-        "ÃƒÆ’Ã…Â¸": "ss",
-        "ÃƒÆ’Ã‚Â©": "e",
-        "ÃƒÆ’Ã‚Â¨": "e",
-        "ÃƒÆ’Ã‚Âª": "e",
-        "ÃƒÆ’Ã‚Â¡": "a",
-        "ÃƒÆ’Ã‚Â ": "a",
-        "ÃƒÆ’Ã‚Â¢": "a",
-    }
 
-    for source, target in replacements.items():
-        normalized = normalized.replace(source, target)
-
-    return normalized
+def normalize_text(value: str) -> str:
+    text = value.lower()
+    text = text.replace("ÃƒÆ’Ã‚Â¤", "ae")
+    text = text.replace("ÃƒÆ’Ã‚Â¶", "oe")
+    text = text.replace("ÃƒÆ’Ã‚Â¼", "ue")
+    text = text.replace("ÃƒÆ’Ã…Â¸", "ss")
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(character for character in text if not unicodedata.combining(character))
+    text = re.sub(r"[^a-z0-9:]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def normalize_query(query: str) -> str:
-    return normalize_text(query)
+def _contains_phrase(normalized_query: str, keyword: str) -> bool:
+    normalized_keyword = normalize_text(keyword)
+    if not normalized_keyword:
+        return False
+
+    pattern = rf"(?<![a-z0-9]){re.escape(normalized_keyword)}(?![a-z0-9])"
+    return re.search(pattern, normalized_query) is not None
+
+
+def _matched_keywords(normalized_query: str, keywords: Iterable[str]) -> tuple[str, ...]:
+    matches: list[str] = []
+
+    for keyword in keywords:
+        normalized_keyword = normalize_text(keyword)
+        if normalized_keyword and _contains_phrase(normalized_query, keyword):
+            matches.append(normalized_keyword)
+
+    return tuple(dict.fromkeys(matches))
 
 
 def find_category(query: str) -> tuple[CategoryRule | None, tuple[str, ...]]:
     normalized_query = normalize_text(query)
 
-    for rule in CATEGORY_RULES:
-        matched_terms = find_matching_keywords(
-            normalized_query,
-            rule.keywords,
+    if any(
+        term in normalized_query
+        for term in (
+            "spielplatz",
+            "spielplaetze",
+            "spielplaetzen",
+            "kinderspielplatz",
+            "playground",
+            "playgrounds",
         )
+    ):
+        for rule in CATEGORY_RULES:
+            if rule.category == "playground":
+                return rule, ("spielplatz",)
 
-        if matched_terms:
-            return rule, matched_terms
+    for rule in CATEGORY_RULES:
+        matches = _matched_keywords(normalized_query, rule.keywords)
+        if matches:
+            return rule, matches
 
-    return None, ()
-
-
-def detect_category(query: str) -> CategoryRule | None:
-    category, _ = find_category(query)
-    return category
-
-
-def detect_primary_category(query: str) -> CategoryRule | None:
-    return detect_category(query)
-
-
-def detect_category_rule(query: str) -> CategoryRule | None:
-    return detect_category(query)
-
-
-def find_category_rule(query: str) -> CategoryRule | None:
-    return detect_category(query)
-
-
-def find_matching_category_rule(query: str) -> CategoryRule | None:
-    return detect_category(query)
+    return None, tuple()
 
 
 def detect_optional_tags(query: str) -> tuple[dict[str, str], tuple[str, ...], list[str], tuple[str, ...]]:
@@ -234,171 +300,86 @@ def detect_optional_tags(query: str) -> tuple[dict[str, str], tuple[str, ...], l
     unsupported_terms: list[str] = []
 
     for rule in OPTIONAL_TAG_RULES:
-        rule_matches = find_matching_keywords(
-            normalized_query,
-            rule.keywords,
+        matches = _matched_keywords(normalized_query, rule.keywords)
+        if matches:
+            tags.update(rule.tags)
+            matched_terms.extend(matches)
+            if rule.warning:
+                warnings.append(rule.warning)
+
+    for term in UNSUPPORTED_SEMANTIC_TERMS:
+        normalized_term = normalize_text(term)
+        if _contains_phrase(normalized_query, term):
+            unsupported_terms.append(normalized_term)
+
+    if unsupported_terms:
+        warnings.append(
+            "Einige qualitative Begriffe koennen regelbasiert nur eingeschraenkt bewertet werden."
         )
 
-        if rule_matches:
-            tags.update(rule.tags)
-            matched_terms.extend(rule_matches)
-
-    for term in UNSUPPORTED_SEMANTIC_TERMS:
-        normalized_term = normalize_text(term)
-
-        if normalized_term in normalized_query:
-            unsupported_terms.append(term)
-            warnings.append(
-                f"Der Begriff '{term}' kann regelbasiert nur eingeschrÃ¤nkt bewertet werden."
-            )
-
-    return tags, tuple(matched_terms), warnings, tuple(unsupported_terms)
-
-def detect_unsupported_terms(query: str) -> tuple[str, ...]:
-    normalized_query = normalize_text(query)
-    matched_terms: list[str] = []
-
-    for term in UNSUPPORTED_SEMANTIC_TERMS:
-        normalized_term = normalize_text(term)
-
-        if normalized_term in normalized_query:
-            matched_terms.append(term)
-
-    return tuple(matched_terms)
+    return tags, tuple(dict.fromkeys(matched_terms)), warnings, tuple(dict.fromkeys(unsupported_terms))
 
 
 def extract_unmatched_terms(
     query: str,
-    matched_terms: tuple[str, ...] = (),
+    matched_terms: Iterable[str] | None = None,
+    optional_matched_terms: Iterable[str] | None = None,
+    unsupported_terms: Iterable[str] | None = None,
+    **kwargs: object,
 ) -> list[str]:
     normalized_query = normalize_text(query)
+    tokens = normalized_query.split()
 
-    ignored_terms = {
-        "finde",
-        "find",
-        "suche",
-        "such",
-        "in",
-        "der",
-        "die",
-        "das",
-        "den",
-        "dem",
-        "mit",
-        "ohne",
-        "und",
-        "oder",
-        "near",
-        "nearby",
-        "nahe",
-        "nähe",
-        "naehe",
-        "umkreis",
-        "von",
-        "im",
-        "am",
-        "an",
-        "zu",
-        "zur",
-        "zum",
-        "einen",
-        "eine",
-        "ein",
-        "meiner",
-        "meine",
-        "mein",
-        "bitte",
-    }
+    all_matched_terms: set[str] = set()
 
-    normalized_matched_terms = {
-        normalize_text(term)
-        for term in matched_terms
-    }
-
-    unmatched_terms: list[str] = []
-
-    for term in normalized_query.replace(",", " ").replace(".", " ").split():
-        cleaned_term = term.strip()
-
-        if not cleaned_term:
+    for group in (
+        matched_terms,
+        optional_matched_terms,
+        unsupported_terms,
+        kwargs.get("category_matched_terms") if isinstance(kwargs.get("category_matched_terms"), Iterable) else None,
+        kwargs.get("optional_terms") if isinstance(kwargs.get("optional_terms"), Iterable) else None,
+    ):
+        if group is None:
             continue
+        for term in group:
+            if isinstance(term, str):
+                all_matched_terms.update(normalize_text(term).split())
 
-        if cleaned_term in ignored_terms:
+    unmatched: list[str] = []
+
+    for token in tokens:
+        if token in STOPWORDS:
             continue
-
-        if any(cleaned_term in matched_term or matched_term in cleaned_term for matched_term in normalized_matched_terms):
+        if token in all_matched_terms:
             continue
+        if token.isdigit():
+            continue
+        unmatched.append(token)
 
-        if cleaned_term not in unmatched_terms:
-            unmatched_terms.append(cleaned_term)
-
-    return unmatched_terms
-
-def contains_any_keyword(
-    query: str,
-    keywords: tuple[str, ...],
-) -> bool:
-    return bool(
-        find_matching_keywords(
-            normalize_text(query),
-            keywords,
-        )
-    )
-
-
-def find_matching_keywords(
-    normalized_query: str,
-    keywords: tuple[str, ...],
-) -> tuple[str, ...]:
-    matched_terms: list[str] = []
-
-    for keyword in keywords:
-        normalized_keyword = normalize_text(keyword)
-
-        if normalized_keyword in normalized_query:
-            matched_terms.append(keyword)
-
-    return tuple(matched_terms)
-
-
-def merge_tags(
-    category_rule: CategoryRule,
-    optional_tags: dict[str, str] | tuple[OptionalTagRule, ...],
-) -> dict[str, str]:
-    tags = dict(category_rule.tags)
-
-    if isinstance(optional_tags, dict):
-        tags.update(optional_tags)
-        return tags
-
-    for rule in optional_tags:
-        tags.update(rule.tags)
-
-    return tags
-
-
-def build_summary(
-    category_rule: CategoryRule,
-    optional_tags: dict[str, str] | tuple[OptionalTagRule, ...],
-) -> str:
-    parts = [category_rule.summary_de]
-
-    if isinstance(optional_tags, dict):
-        return " ".join(parts)
-
-    parts.extend(rule.summary_de for rule in optional_tags)
-    return " ".join(parts)
+    return list(dict.fromkeys(unmatched))
 
 
 def get_allowed_tags() -> set[tuple[str, str]]:
     allowed_tags: set[tuple[str, str]] = set()
 
     for rule in CATEGORY_RULES:
-        for key, value in rule.tags.items():
-            allowed_tags.add((key, value))
+        allowed_tags.update(rule.tags.items())
 
     for rule in OPTIONAL_TAG_RULES:
-        for key, value in rule.tags.items():
-            allowed_tags.add((key, value))
+        allowed_tags.update(rule.tags.items())
 
     return allowed_tags
+
+
+__all__ = [
+    "CategoryRule",
+    "OptionalTagRule",
+    "CATEGORY_RULES",
+    "OPTIONAL_TAG_RULES",
+    "UNSUPPORTED_SEMANTIC_TERMS",
+    "normalize_text",
+    "find_category",
+    "detect_optional_tags",
+    "extract_unmatched_terms",
+    "get_allowed_tags",
+]
