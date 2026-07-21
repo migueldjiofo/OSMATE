@@ -1,6 +1,7 @@
 package com.osmate.app.data.api
 
 import com.osmate.app.BuildConfig
+import com.osmate.app.data.model.RoutingResult
 import com.osmate.app.data.model.SearchPlan
 import com.osmate.app.data.model.SearchResult
 import com.osmate.app.data.model.SearchResultItem
@@ -44,6 +45,29 @@ class OsmateApiClient(
         parseSearchResult(JSONObject(response))
     }
 
+
+    suspend fun calculateRoute(
+        startLatitude: Double,
+        startLongitude: Double,
+        destinationLatitude: Double,
+        destinationLongitude: Double,
+        mode: String,
+    ): RoutingResult = withContext(Dispatchers.IO) {
+        val requestBody = JSONObject()
+            .put("start_lat", startLatitude)
+            .put("start_lon", startLongitude)
+            .put("destination_lat", destinationLatitude)
+            .put("destination_lon", destinationLongitude)
+            .put("mode", mode)
+
+        val response = executeRequest(
+            path = "/api/v1/routing/route",
+            method = "POST",
+            body = requestBody,
+        )
+
+        parseRoutingResult(JSONObject(response))
+    }
     private fun executeRequest(
         path: String,
         method: String,
@@ -90,6 +114,27 @@ class OsmateApiClient(
         }.orEmpty()
     }
 
+
+    private fun parseRoutingResult(json: JSONObject): RoutingResult {
+        val geoJsonValue = json.opt("geojson")
+
+        val geoJson = when (geoJsonValue) {
+            is JSONObject -> geoJsonValue.toString()
+            is String -> geoJsonValue
+            else -> emptyFeatureCollection()
+        }
+
+        return RoutingResult(
+            mode = json.optString("mode"),
+            provider = json.optString("provider"),
+            distanceMeters = json.optInt("distance_m"),
+            durationSeconds = json.optInt("duration_s"),
+            distanceText = json.optString("distance_text"),
+            durationText = json.optString("duration_text"),
+            geoJson = geoJson,
+            warnings = jsonArrayToList(json.optJSONArray("warnings")),
+        )
+    }
     private fun parseSearchResult(json: JSONObject): SearchResult {
         val geoJsonValue = json.opt("geojson")
 

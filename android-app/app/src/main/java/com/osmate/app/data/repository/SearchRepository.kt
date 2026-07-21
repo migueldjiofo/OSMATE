@@ -1,6 +1,7 @@
 package com.osmate.app.data.repository
 
 import com.osmate.app.data.api.OsmateApiClient
+import com.osmate.app.data.model.RoutingResult
 import com.osmate.app.data.model.SearchResult
 
 class SearchRepository(
@@ -19,6 +20,22 @@ class SearchRepository(
             query = query,
             placeName = placeName,
             radiusM = radiusM,
+        )
+    }
+
+    suspend fun calculateRoute(
+        startLatitude: Double,
+        startLongitude: Double,
+        destinationLatitude: Double,
+        destinationLongitude: Double,
+        mode: String,
+    ): RoutingResult {
+        return apiClient.calculateRoute(
+            startLatitude = startLatitude,
+            startLongitude = startLongitude,
+            destinationLatitude = destinationLatitude,
+            destinationLongitude = destinationLongitude,
+            mode = mode,
         )
     }
 }

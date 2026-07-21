@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -29,6 +30,12 @@ fun SelectedResultDetail(
     userLongitude: Double?,
     selectedTravelMode: TravelMode,
     onTravelModeChange: (TravelMode) -> Unit,
+    routeDistanceText: String,
+    routeDurationText: String,
+    routeProvider: String,
+    routeWarnings: List<String>,
+    isRouteLoading: Boolean,
+    onCalculateRouteClick: (Double?, Double?, Double?, Double?, TravelMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (item == null) {
@@ -90,6 +97,12 @@ fun SelectedResultDetail(
                 userLongitude = userLongitude,
                 selectedTravelMode = selectedTravelMode,
                 onTravelModeChange = onTravelModeChange,
+                routeDistanceText = routeDistanceText,
+                routeDurationText = routeDurationText,
+                routeProvider = routeProvider,
+                routeWarnings = routeWarnings,
+                isRouteLoading = isRouteLoading,
+                onCalculateRouteClick = onCalculateRouteClick,
                 onOpenNavigation = { startLat, startLon, destinationLat, destinationLon, mode ->
                     openUrl(
                         context = context,
@@ -150,6 +163,12 @@ private fun NavigationSection(
     userLongitude: Double?,
     selectedTravelMode: TravelMode,
     onTravelModeChange: (TravelMode) -> Unit,
+    routeDistanceText: String,
+    routeDurationText: String,
+    routeProvider: String,
+    routeWarnings: List<String>,
+    isRouteLoading: Boolean,
+    onCalculateRouteClick: (Double?, Double?, Double?, Double?, TravelMode) -> Unit,
     onOpenNavigation: (Double, Double, Double, Double, TravelMode) -> Unit,
 ) {
     val destinationLatitude = item.latitude
@@ -160,10 +179,7 @@ private fun NavigationSection(
         style = MaterialTheme.typography.titleSmall,
     )
 
-    if (
-        userLatitude == null ||
-        userLongitude == null
-    ) {
+    if (userLatitude == null || userLongitude == null) {
         Text(
             text = "Bitte zuerst \u201eMeine Position\u201c verwenden.",
             style = MaterialTheme.typography.bodySmall,
@@ -171,10 +187,7 @@ private fun NavigationSection(
         return
     }
 
-    if (
-        destinationLatitude == null ||
-        destinationLongitude == null
-    ) {
+    if (destinationLatitude == null || destinationLongitude == null) {
         Text(
             text = "F\u00fcr dieses Objekt kann keine Navigation berechnet werden.",
             style = MaterialTheme.typography.bodySmall,
@@ -195,9 +208,58 @@ private fun NavigationSection(
         mode = selectedTravelMode,
     )
 
-    NavigationEstimateText(
+    DirectEstimateText(
         estimate = estimate,
     )
+
+    Button(
+        onClick = {
+            onCalculateRouteClick(
+                userLatitude,
+                userLongitude,
+                destinationLatitude,
+                destinationLongitude,
+                selectedTravelMode,
+            )
+        },
+        enabled = !isRouteLoading,
+    ) {
+        Text("Route berechnen")
+    }
+
+    if (isRouteLoading) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator()
+
+            Text(
+                text = "Route wird berechnet...",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+
+    if (routeDistanceText.isNotBlank() && routeDurationText.isNotBlank()) {
+        Text(
+            text = "Backend-Route: $routeDistanceText | $routeDurationText",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        if (routeProvider.isNotBlank()) {
+            Text(
+                text = "Routing-Anbieter: $routeProvider",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+
+    routeWarnings.forEach { warning ->
+        Text(
+            text = "Hinweis: $warning",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 
     Button(
         onClick = {
@@ -247,21 +309,16 @@ private fun TravelModeSelector(
 }
 
 @Composable
-private fun NavigationEstimateText(
+private fun DirectEstimateText(
     estimate: RouteEstimate,
 ) {
     Text(
-        text = "Distanz: ${RouteEstimator.formatDistance(estimate.distanceMeters)}",
+        text = "Direkte Distanz: ${RouteEstimator.formatDistance(estimate.distanceMeters)}",
         style = MaterialTheme.typography.bodySmall,
     )
 
     Text(
-        text = "Gesch\u00e4tzte Dauer (${estimate.mode.label}): ${RouteEstimator.formatDuration(estimate.durationMinutes)}",
-        style = MaterialTheme.typography.bodySmall,
-    )
-
-    Text(
-        text = "Hinweis: Die aktuelle Sch\u00e4tzung basiert auf direkter Entfernung, nicht auf einem Stra\u00dfen- oder Wegenetz.",
+        text = "Direkte Sch\u00e4tzung (${estimate.mode.label}): ${RouteEstimator.formatDuration(estimate.durationMinutes)}",
         style = MaterialTheme.typography.bodySmall,
     )
 }

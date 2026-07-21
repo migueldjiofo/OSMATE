@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.data.repository.SearchRepository
+import com.osmate.app.domain.navigation.TravelMode
 import com.osmate.app.domain.validation.SearchInputValidator
 import com.osmate.app.ui.error.ErrorMessageMapper
 import com.osmate.app.ui.state.SearchUiState
@@ -56,6 +57,11 @@ class SearchViewModel(
                 selectedResultTitle = "",
                 selectedLatitude = null,
                 selectedLongitude = null,
+                routeGeoJson = "",
+                routeDistanceText = "",
+                routeDurationText = "",
+                routeProvider = "",
+                routeWarnings = emptyList(),
                 errorMessage = "",
                 isLoading = false,
             )
@@ -85,6 +91,11 @@ class SearchViewModel(
                 selectedResultTitle = "",
                 selectedLatitude = null,
                 selectedLongitude = null,
+                routeGeoJson = "",
+                routeDistanceText = "",
+                routeDurationText = "",
+                routeProvider = "",
+                routeWarnings = emptyList(),
                 errorMessage = "",
                 isLoading = false,
             )
@@ -143,6 +154,11 @@ class SearchViewModel(
                     selectedResultTitle = "",
                     selectedLatitude = null,
                     selectedLongitude = null,
+                routeGeoJson = "",
+                routeDistanceText = "",
+                routeDurationText = "",
+                routeProvider = "",
+                routeWarnings = emptyList(),
                 )
             }
 
@@ -184,6 +200,67 @@ class SearchViewModel(
         }
     }
 
+
+    fun calculateRoute(
+        startLatitude: Double?,
+        startLongitude: Double?,
+        destinationLatitude: Double?,
+        destinationLongitude: Double?,
+        mode: TravelMode,
+    ) {
+        if (
+            startLatitude == null ||
+            startLongitude == null ||
+            destinationLatitude == null ||
+            destinationLongitude == null
+        ) {
+            _uiState.update { state ->
+                state.copy(
+                    errorMessage = "Für die Route werden aktuelle Position und Zielkoordinate benötigt.",
+                    isRouteLoading = false,
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    isRouteLoading = true,
+                    errorMessage = "",
+                )
+            }
+
+            runCatching {
+                repository.calculateRoute(
+                    startLatitude = startLatitude,
+                    startLongitude = startLongitude,
+                    destinationLatitude = destinationLatitude,
+                    destinationLongitude = destinationLongitude,
+                    mode = mode.apiValue,
+                )
+            }.onSuccess { route ->
+                _uiState.update { state ->
+                    state.copy(
+                        routeGeoJson = route.geoJson,
+                        routeDistanceText = route.distanceText,
+                        routeDurationText = route.durationText,
+                        routeProvider = route.provider,
+                        routeWarnings = route.warnings,
+                        isRouteLoading = false,
+                        errorMessage = "",
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update { state ->
+                    state.copy(
+                        errorMessage = ErrorMessageMapper.fromThrowable(error),
+                        isRouteLoading = false,
+                    )
+                }
+            }
+        }
+    }
     private fun showValidationError(message: String) {
         _uiState.update { state ->
             state.copy(

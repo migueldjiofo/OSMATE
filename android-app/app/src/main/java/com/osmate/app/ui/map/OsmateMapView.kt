@@ -22,11 +22,15 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
+import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
+import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.FeatureCollection
 
@@ -35,6 +39,9 @@ private const val RESULT_CIRCLE_LAYER_ID = "osmate-search-results-circle-layer"
 
 private const val SELECTED_SOURCE_ID = "osmate-selected-result-source"
 private const val SELECTED_CIRCLE_LAYER_ID = "osmate-selected-result-circle-layer"
+
+private const val ROUTE_SOURCE_ID = "osmate-route-source"
+private const val ROUTE_LINE_LAYER_ID = "osmate-route-line-layer"
 
 private const val USER_SOURCE_ID = "osmate-user-location-source"
 private const val USER_CIRCLE_LAYER_ID = "osmate-user-location-circle-layer"
@@ -69,6 +76,7 @@ private val OSM_RASTER_STYLE = """
 @Composable
 fun OsmateMapView(
     geoJson: String,
+    routeGeoJson: String,
     selectedLatitude: Double?,
     selectedLongitude: Double?,
     userLatitude: Double?,
@@ -114,6 +122,11 @@ fun OsmateMapView(
             getMapAsync { map ->
                 map.setStyle(Style.Builder().fromJson(OSM_RASTER_STYLE)) { style ->
                     addOrUpdateSearchResults(
+                        style = style,
+                        geoJson = EMPTY_FEATURE_COLLECTION,
+                    )
+
+                    addOrUpdateRoute(
                         style = style,
                         geoJson = EMPTY_FEATURE_COLLECTION,
                     )
@@ -221,6 +234,13 @@ fun OsmateMapView(
                 addOrUpdateSearchResults(
                     style = style,
                     geoJson = normalizedGeoJson,
+                )
+
+                addOrUpdateRoute(
+                    style = style,
+                    geoJson = routeGeoJson.ifBlank {
+                        EMPTY_FEATURE_COLLECTION
+                    },
                 )
 
                 addOrUpdateSelectedResult(
@@ -374,6 +394,38 @@ private fun addOrUpdateSearchResults(
     }
 }
 
+
+private fun addOrUpdateRoute(
+    style: Style,
+    geoJson: String,
+) {
+    val featureCollection = parseFeatureCollection(geoJson)
+    val source = style.getSource(ROUTE_SOURCE_ID) as? GeoJsonSource
+
+    if (source == null) {
+        style.addSource(
+            GeoJsonSource(
+                ROUTE_SOURCE_ID,
+                featureCollection,
+            ),
+        )
+    } else {
+        source.setGeoJson(featureCollection)
+    }
+
+    if (style.getLayer(ROUTE_LINE_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(
+                ROUTE_LINE_LAYER_ID,
+                ROUTE_SOURCE_ID,
+            ).withProperties(
+                lineColor(Color.parseColor("#1B8A5A")),
+                lineWidth(5.0f),
+                lineOpacity(0.85f),
+            ),
+        )
+    }
+}
 private fun addOrUpdateSelectedResult(
     style: Style,
     latitude: Double?,

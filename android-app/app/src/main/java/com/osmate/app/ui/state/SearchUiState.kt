@@ -10,6 +10,11 @@ data class SearchUiState(
     val resultText: String = "",
     val resultCount: Int = 0,
     val geoJson: String = "",
+    val routeGeoJson: String = "",
+    val routeDistanceText: String = "",
+    val routeDurationText: String = "",
+    val routeProvider: String = "",
+    val routeWarnings: List<String> = emptyList(),
     val resultItems: List<SearchResultItem> = emptyList(),
     val selectedResult: SearchResultItem? = null,
     val selectedResultTitle: String = "",
@@ -17,4 +22,5 @@ data class SearchUiState(
     val selectedLongitude: Double? = null,
     val errorMessage: String = "",
     val isLoading: Boolean = false,
+    val isRouteLoading: Boolean = false,
 )

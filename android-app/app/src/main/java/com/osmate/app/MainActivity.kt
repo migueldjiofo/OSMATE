@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
                     onResetClick = viewModel::resetResults,
                     onExampleClick = viewModel::applySearchExample,
                     onResultClick = viewModel::selectResult,
+                    onCalculateRouteClick = viewModel::calculateRoute,
                     modifier = Modifier.safeDrawingPadding(),
                 )
             }

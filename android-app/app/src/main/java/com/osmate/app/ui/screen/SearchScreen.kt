@@ -58,6 +58,7 @@ fun SearchScreen(
     onResetClick: () -> Unit,
     onExampleClick: (String, String, String) -> Unit,
     onResultClick: (SearchResultItem) -> Unit,
+    onCalculateRouteClick: (Double?, Double?, Double?, Double?, TravelMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -90,7 +91,7 @@ fun SearchScreen(
                 userLocationFocusRequest.intValue += 1
                 locationStatus.value = buildLocationStatus(location)
             } else {
-                locationStatus.value = "Keine aktuelle Position verfÃ¼gbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
+                locationStatus.value = "Keine aktuelle Position verfÃƒÂ¼gbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
             }
         }
     }
@@ -208,6 +209,7 @@ fun SearchScreen(
 
         OsmateMapView(
             geoJson = state.geoJson,
+            routeGeoJson = state.routeGeoJson,
             selectedLatitude = state.selectedLatitude,
             selectedLongitude = state.selectedLongitude,
             userLatitude = userLocation.value?.latitude,
@@ -237,6 +239,12 @@ fun SearchScreen(
             onTravelModeChange = { mode ->
                 selectedTravelMode.value = mode
             },
+            routeDistanceText = state.routeDistanceText,
+            routeDurationText = state.routeDurationText,
+            routeProvider = state.routeProvider,
+            routeWarnings = state.routeWarnings,
+            isRouteLoading = state.isRouteLoading,
+            onCalculateRouteClick = onCalculateRouteClick,
             modifier = Modifier.fillMaxWidth(),
         )
 
