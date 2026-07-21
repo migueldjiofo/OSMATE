@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.osmate.app.data.model.SearchResultItem
 import com.osmate.app.domain.location.UserLocation
+import com.osmate.app.domain.navigation.TravelMode
 import com.osmate.app.ui.map.OsmateMapView
 import com.osmate.app.ui.state.SearchUiState
 import kotlinx.coroutines.launch
@@ -74,6 +75,10 @@ fun SearchScreen(
         mutableStateOf("")
     }
 
+    val selectedTravelMode = remember {
+        mutableStateOf(TravelMode.Walking)
+    }
+
     fun updateUserLocation() {
         coroutineScope.launch {
             locationStatus.value = "Standort wird ermittelt..."
@@ -85,7 +90,7 @@ fun SearchScreen(
                 userLocationFocusRequest.intValue += 1
                 locationStatus.value = buildLocationStatus(location)
             } else {
-                locationStatus.value = "Keine aktuelle Position verfügbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
+                locationStatus.value = "Keine aktuelle Position verfÃ¼gbar. Bitte Standort im Emulator setzen oder GPS aktivieren."
             }
         }
     }
@@ -226,6 +231,12 @@ fun SearchScreen(
 
         SelectedResultDetail(
             item = state.selectedResult,
+            userLatitude = userLocation.value?.latitude,
+            userLongitude = userLocation.value?.longitude,
+            selectedTravelMode = selectedTravelMode.value,
+            onTravelModeChange = { mode ->
+                selectedTravelMode.value = mode
+            },
             modifier = Modifier.fillMaxWidth(),
         )
 
