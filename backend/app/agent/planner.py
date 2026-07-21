@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.agent.spatial_terms import extract_radius_meters
 from app.agent.tag_catalog import (
     detect_optional_tags,
     extract_unmatched_terms,
@@ -56,9 +57,21 @@ def create_agent_plan(request_data: SearchRequest) -> AgentPlan:
     if unmatched_terms:
         confidence_score = min(confidence_score, 0.72)
 
+    default_radius_m = getattr(
+        settings,
+        "default_radius_m",
+        getattr(settings, "search_default_radius_m", 1000),
+    )
+
+    radius_m = extract_radius_meters(
+        query=request_data.query,
+        fallback_radius_m=request_data.radius_m,
+        default_radius_m=default_radius_m,
+    )
+
     spatial_filter = {
         "type": "radius",
-        "radius_m": request_data.radius_m or settings.default_radius_m,
+        "radius_m": radius_m,
         "lat": request_data.lat,
         "lon": request_data.lon,
     }
