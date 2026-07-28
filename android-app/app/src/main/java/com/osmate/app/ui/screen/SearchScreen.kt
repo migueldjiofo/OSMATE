@@ -1,4 +1,4 @@
-﻿package com.osmate.app.ui.screen
+package com.osmate.app.ui.screen
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -1290,10 +1290,8 @@ private fun BottomSheetTabBar(
     onTabSelected: (BottomSheetTab) -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         BottomSheetTab.entries.forEach { tab ->
             BottomSheetTabButton(
@@ -1302,6 +1300,7 @@ private fun BottomSheetTabBar(
                 onClick = {
                     onTabSelected(tab)
                 },
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -1312,11 +1311,17 @@ private fun BottomSheetTabButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     if (selected) {
         Button(
             onClick = onClick,
+            modifier = modifier,
             shape = RoundedCornerShape(18.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 4.dp,
+                vertical = 8.dp,
+            ),
             colors = ButtonDefaults.buttonColors(
                 containerColor = OsmatePurple,
                 contentColor = Color.White,
@@ -1324,15 +1329,26 @@ private fun BottomSheetTabButton(
         ) {
             Text(
                 text = label,
+                maxLines = 1,
                 fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
             )
         }
     } else {
         OutlinedButton(
             onClick = onClick,
+            modifier = modifier,
             shape = RoundedCornerShape(18.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 4.dp,
+                vertical = 8.dp,
+            ),
         ) {
-            Text(label)
+            Text(
+                text = label,
+                maxLines = 1,
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
     }
 }
@@ -1840,6 +1856,7 @@ private data class SearchExample(
     val placeName: String,
     val radiusM: String,
 )
+
 
 
 
