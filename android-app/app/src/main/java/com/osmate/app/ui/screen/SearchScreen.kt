@@ -1,4 +1,4 @@
-package com.osmate.app.ui.screen
+﻿package com.osmate.app.ui.screen
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -45,6 +45,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -714,6 +715,16 @@ private fun ModernMapScreen(
     onFocusUserClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    /*
+     * DE: Zähler, damit das Bottom Sheet nach einem Kartenklick
+     *     automatisch zum Detail-Tab wechseln kann.
+     * FR : Compteur permettant au panneau inférieur de basculer
+     *     automatiquement vers l'onglet Détails après un clic.
+     */
+    val mapSelectionRequest = remember {
+        mutableIntStateOf(0)
+    }
+
     Box(
         modifier = modifier.fillMaxSize(),
     ) {
@@ -730,6 +741,18 @@ private fun ModernMapScreen(
             zoomRequest = zoomRequest,
             zoomDirection = zoomDirection,
             onSelectedPointClick = {},
+            onResultPointClick = { latitude, longitude ->
+                val selectedItem = findNearestSearchResult(
+                    items = state.resultItems,
+                    latitude = latitude,
+                    longitude = longitude,
+                )
+
+                if (selectedItem != null) {
+                    onResultClick(selectedItem)
+                    mapSelectionRequest.intValue += 1
+                }
+            },
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -757,6 +780,7 @@ private fun ModernMapScreen(
         ResultsBottomSheet(
             state = state,
             userLocation = userLocation,
+            mapSelectionRequest = mapSelectionRequest.intValue,
             selectedTravelMode = selectedTravelMode,
             onTravelModeChange = onTravelModeChange,
             onResultClick = onResultClick,
@@ -976,6 +1000,7 @@ private fun MapControlButton(
 private fun ResultsBottomSheet(
     state: SearchUiState,
     userLocation: UserLocation?,
+    mapSelectionRequest: Int,
     selectedTravelMode: TravelMode,
     onTravelModeChange: (TravelMode) -> Unit,
     onResultClick: (SearchResultItem) -> Unit,
@@ -998,6 +1023,17 @@ private fun ResultsBottomSheet(
 
     val dragDistance = remember {
         mutableStateOf(0f)
+    }
+
+    /*
+     * DE: Ein Kartenklick öffnet automatisch die Detailansicht.
+     * FR : Un clic sur la carte ouvre automatiquement la fiche Détails.
+     */
+    LaunchedEffect(mapSelectionRequest) {
+        if (mapSelectionRequest > 0) {
+            selectedTab.value = BottomSheetTab.Details
+            sheetLevel.value = BottomSheetLevel.Medium
+        }
     }
 
     val animatedSheetFraction by animateFloatAsState(
@@ -1712,6 +1748,63 @@ private fun ModernErrorCard(
     }
 }
 
+/*
+ * DE: Sucht das Ergebnis, dessen Koordinaten dem angeklickten
+ *     GeoJSON-Punkt am nächsten liegen.
+ * FR : Recherche le résultat dont les coordonnées sont les plus
+ *     proches du point GeoJSON touché.
+ */
+private fun findNearestSearchResult(
+    items: List<SearchResultItem>,
+    latitude: Double,
+    longitude: Double,
+): SearchResultItem? {
+    val candidates = items.filter { item ->
+        item.latitude != null && item.longitude != null
+    }
+
+    val nearestItem = candidates.minByOrNull { item ->
+        val latitudeDifference =
+            (item.latitude ?: latitude) - latitude
+
+        val longitudeDifference =
+            (item.longitude ?: longitude) - longitude
+
+        latitudeDifference * latitudeDifference +
+            longitudeDifference * longitudeDifference
+    } ?: return null
+
+    val nearestLatitude =
+        nearestItem.latitude ?: return null
+
+    val nearestLongitude =
+        nearestItem.longitude ?: return null
+
+    val latitudeDifference =
+        nearestLatitude - latitude
+
+    val longitudeDifference =
+        nearestLongitude - longitude
+
+    val squaredDistance =
+        latitudeDifference * latitudeDifference +
+            longitudeDifference * longitudeDifference
+
+    /*
+     * DE: Etwa 50–70 Meter Toleranz, abhängig vom Breitengrad.
+     * FR : Tolérance approximative de 50 à 70 mètres selon la latitude.
+     */
+    val maximumCoordinateDifference = 0.0006
+    val maximumSquaredDistance =
+        maximumCoordinateDifference * maximumCoordinateDifference
+
+    return if (squaredDistance <= maximumSquaredDistance) {
+        nearestItem
+    } else {
+        null
+    }
+}
+
 private fun hasLocationPermission(context: Context): Boolean {
     val fineLocationGranted = context.checkSelfPermission(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -1856,6 +1949,7 @@ private data class SearchExample(
     val placeName: String,
     val radiusM: String,
 )
+
 
 
 

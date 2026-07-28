@@ -1,4 +1,4 @@
-package com.osmate.app.ui.map
+﻿package com.osmate.app.ui.map
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -55,6 +55,7 @@ import org.maplibre.android.style.layers.PropertyFactory.textSize
 import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.FeatureCollection
+import org.maplibre.geojson.Point
 
 private const val RESULT_SOURCE_ID = "osmate-search-results-source"
 private const val RESULT_CIRCLE_LAYER_ID = "osmate-search-results-circle-layer"
@@ -67,6 +68,22 @@ private const val SELECTED_HALO_LAYER_ID = "osmate-selected-result-halo-layer"
 
 private const val RESULT_MARKER_IMAGE_ID = "osmate-result-marker-image"
 private const val SELECTED_MARKER_IMAGE_ID = "osmate-selected-marker-image"
+
+private const val CAFE_MARKER_IMAGE_ID = "osmate-cafe-marker-image"
+private const val FOOD_MARKER_IMAGE_ID = "osmate-food-marker-image"
+private const val HEALTH_MARKER_IMAGE_ID = "osmate-health-marker-image"
+private const val PARKING_MARKER_IMAGE_ID = "osmate-parking-marker-image"
+private const val TRANSIT_MARKER_IMAGE_ID = "osmate-transit-marker-image"
+private const val PARK_MARKER_IMAGE_ID = "osmate-park-marker-image"
+private const val SHOP_MARKER_IMAGE_ID = "osmate-shop-marker-image"
+
+private const val CAFE_MARKER_LAYER_ID = "osmate-cafe-marker-layer"
+private const val FOOD_MARKER_LAYER_ID = "osmate-food-marker-layer"
+private const val HEALTH_MARKER_LAYER_ID = "osmate-health-marker-layer"
+private const val PARKING_MARKER_LAYER_ID = "osmate-parking-marker-layer"
+private const val TRANSIT_MARKER_LAYER_ID = "osmate-transit-marker-layer"
+private const val PARK_MARKER_LAYER_ID = "osmate-park-marker-layer"
+private const val SHOP_MARKER_LAYER_ID = "osmate-shop-marker-layer"
 
 private const val ROUTE_SOURCE_ID = "osmate-route-source"
 private const val ROUTE_CASING_LAYER_ID = "osmate-route-casing-layer"
@@ -144,6 +161,7 @@ fun OsmateMapView(
     zoomRequest: Int = 0,
     zoomDirection: Int = 0,
     onSelectedPointClick: () -> Unit = {},
+    onResultPointClick: (Double, Double) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -184,6 +202,7 @@ fun OsmateMapView(
     val currentMapStyle = rememberUpdatedState(mapStyle)
 
     val selectedPointClickHandler = rememberUpdatedState(onSelectedPointClick)
+    val resultPointClickHandler = rememberUpdatedState(onResultPointClick)
 
     val currentSelectedLatitude = rememberUpdatedState(selectedLatitude)
     val currentSelectedLongitude = rememberUpdatedState(selectedLongitude)
@@ -209,8 +228,15 @@ fun OsmateMapView(
             }
 
             getMapAsync { map ->
-                map.addOnMapClickListener { latLng ->
-                    val screenPoint = map.projection.toScreenLocation(latLng)
+
+                map.addOnMapClickListener { clickedLocation ->
+                    val screenPoint =
+                        map.projection.toScreenLocation(clickedLocation)
+
+                    /*
+                     * DE: Bereits ausgewählten Marker zuerst prüfen.
+                     * FR : Vérifier d'abord le marqueur déjà sélectionné.
+                     */
                     val selectedFeatures = map.queryRenderedFeatures(
                         screenPoint,
                         SELECTED_CIRCLE_LAYER_ID,
@@ -218,18 +244,74 @@ fun OsmateMapView(
 
                     if (selectedFeatures.isNotEmpty()) {
                         selectedPointClickHandler.value()
-                        true
-                    } else {
-                        false
+                        return@addOnMapClickListener true
                     }
-                }
 
-                map.addOnMapClickListener { clickedLocation ->
+                    /*
+                     * DE: Alle sichtbaren Ergebnis-Layer berücksichtigen.
+                     * FR : Prendre en compte toutes les couches de résultats visibles.
+                     */
+                    val resultFeatures = map.queryRenderedFeatures(
+                        screenPoint,
+                        CAFE_MARKER_LAYER_ID,
+                        FOOD_MARKER_LAYER_ID,
+                        HEALTH_MARKER_LAYER_ID,
+                        PARKING_MARKER_LAYER_ID,
+                        TRANSIT_MARKER_LAYER_ID,
+                        PARK_MARKER_LAYER_ID,
+                        SHOP_MARKER_LAYER_ID,
+                        RESULT_CIRCLE_LAYER_ID,
+                    )
+
+                    val resultPoint = resultFeatures
+                        .asSequence()
+                        .mapNotNull { feature ->
+                            feature.geometry() as? Point
+                        }
+                        .firstOrNull()
+
+                    if (resultPoint != null) {
+                        resultPointClickHandler.value(
+                            resultPoint.latitude(),
+                            resultPoint.longitude(),
+                        )
+
+                        return@addOnMapClickListener true
+                    }
+
+                    /*
+                     * DE: Cluster antippen, um näher heranzuzoomen.
+                     * FR : Toucher un cluster afin d'effectuer un zoom avant.
+                     */
+                    val clusterFeatures = map.queryRenderedFeatures(
+                        screenPoint,
+                        RESULT_CLUSTER_LAYER_ID,
+                        RESULT_CLUSTER_COUNT_LAYER_ID,
+                    )
+
+                    if (clusterFeatures.isNotEmpty()) {
+                        val targetZoom = (
+                            map.cameraPosition.zoom + 2.0
+                        ).coerceAtMost(18.0)
+
+                        map.animateCamera(
+                            CameraUpdateFactory.newLatLngZoom(
+                                clickedLocation,
+                                targetZoom,
+                            ),
+                            450,
+                        )
+
+                        return@addOnMapClickListener true
+                    }
+
                     val isNearSelectedPoint = isClickNearSelectedPoint(
                         map = map,
                         clickedLocation = clickedLocation,
-                        selectedLatitude = currentSelectedLatitude.value,
-                        selectedLongitude = currentSelectedLongitude.value,
+                        selectedLatitude =
+                            currentSelectedLatitude.value,
+                        selectedLongitude =
+                            currentSelectedLongitude.value,
                     )
 
                     if (isNearSelectedPoint) {
@@ -416,9 +498,11 @@ fun OsmateMapView(
                 updateCameraIfNeeded(
                     map = map,
                     geoJson = geoJson,
+                    routeGeoJson = currentRouteGeoJson.value,
                     selectedLatitude = selectedLatitude,
                     selectedLongitude = selectedLongitude,
                     lastCenteredGeoJson = lastCenteredGeoJson.value,
+                    lastCenteredRouteGeoJson = lastCenteredRouteGeoJson.value,
                     userLatitude = userLatitude,
                     userLongitude = userLongitude,
                     userLocationFocusRequest = userLocationFocusRequest,
@@ -426,6 +510,10 @@ fun OsmateMapView(
                     lastCenteredUserLocationFocusRequest = lastCenteredUserLocationFocusRequest.value,
                     onGeoJsonCentered = { centeredGeoJson ->
                         lastCenteredGeoJson.value = centeredGeoJson
+                    },
+                    onRouteGeoJsonCentered = { centeredRouteGeoJson ->
+                        lastCenteredRouteGeoJson.value =
+                            centeredRouteGeoJson
                     },
                     onSelectedCentered = { selectedKey ->
                         lastCenteredSelectedKey.value = selectedKey
@@ -559,15 +647,18 @@ private fun isClickNearSelectedPoint(
 private fun updateCameraIfNeeded(
     map: MapLibreMap,
     geoJson: String,
+    routeGeoJson: String,
     selectedLatitude: Double?,
     selectedLongitude: Double?,
     userLatitude: Double?,
     userLongitude: Double?,
     userLocationFocusRequest: Int,
     lastCenteredGeoJson: String?,
+    lastCenteredRouteGeoJson: String?,
     lastCenteredSelectedKey: String?,
     lastCenteredUserLocationFocusRequest: Int,
     onGeoJsonCentered: (String) -> Unit,
+    onRouteGeoJsonCentered: (String) -> Unit,
     onSelectedCentered: (String?) -> Unit,
     onUserLocationCentered: (Int) -> Unit,
 ) {
@@ -613,9 +704,14 @@ private fun updateCameraIfNeeded(
     }
 
     if (selectedKey == null && geoJson.isNotBlank() && geoJson != lastCenteredGeoJson) {
-        centerMapOnGeoJson(
+        centerMapOnGeoJsonBounds(
             map = map,
             geoJson = geoJson,
+            topPadding = 160,
+            leftPadding = 80,
+            rightPadding = 80,
+            bottomPadding = 430,
+            animationDurationMs = 850,
         )
 
         onGeoJsonCentered(geoJson)
@@ -731,7 +827,7 @@ private fun addOrUpdateSearchResults(
             RESULT_SOURCE_ID,
         ).withProperties(
             iconImage(RESULT_MARKER_IMAGE_ID),
-            iconSize(0.58f),
+            iconSize(0.52f),
             iconAnchor(Property.ICON_ANCHOR_BOTTOM),
             iconAllowOverlap(true),
             iconIgnorePlacement(true),
@@ -746,6 +842,137 @@ private fun addOrUpdateSearchResults(
 
         style.addLayer(resultLayer)
     }
+
+    /*
+     * DE: Kategoriespezifische Marker werden über dem neutralen Marker
+     *     dargestellt. Dadurch bleibt für unbekannte OSM-Tags immer ein
+     *     sichtbarer Standardmarker erhalten.
+     * FR : Les marqueurs catégoriels sont placés au-dessus du marqueur
+     *     neutre. Les catégories inconnues conservent ainsi un repère.
+     */
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = CAFE_MARKER_LAYER_ID,
+        imageId = CAFE_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#8B5E3C"),
+        centerLabel = "C",
+        propertyName = "amenity",
+        acceptedValues = listOf("cafe"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = FOOD_MARKER_LAYER_ID,
+        imageId = FOOD_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#E85D3F"),
+        centerLabel = "R",
+        propertyName = "amenity",
+        acceptedValues = listOf("restaurant", "fast_food", "food_court"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = HEALTH_MARKER_LAYER_ID,
+        imageId = HEALTH_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#D7263D"),
+        centerLabel = "+",
+        propertyName = "amenity",
+        acceptedValues = listOf("hospital", "clinic", "doctors", "pharmacy"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = PARKING_MARKER_LAYER_ID,
+        imageId = PARKING_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#2563EB"),
+        centerLabel = "P",
+        propertyName = "amenity",
+        acceptedValues = listOf("parking", "parking_entrance"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = TRANSIT_MARKER_LAYER_ID,
+        imageId = TRANSIT_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#0F766E"),
+        centerLabel = "T",
+        propertyName = "public_transport",
+        acceptedValues = listOf("station", "stop_position", "platform"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = PARK_MARKER_LAYER_ID,
+        imageId = PARK_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#16A34A"),
+        centerLabel = "N",
+        propertyName = "leisure",
+        acceptedValues = listOf("park", "garden", "playground"),
+    )
+
+    addCategoryMarkerLayer(
+        style = style,
+        layerId = SHOP_MARKER_LAYER_ID,
+        imageId = SHOP_MARKER_IMAGE_ID,
+        fillColor = Color.parseColor("#7C3AED"),
+        centerLabel = "S",
+        propertyName = "shop",
+        acceptedValues = listOf("supermarket", "convenience", "mall", "department_store"),
+    )
+}
+
+private fun addCategoryMarkerLayer(
+    style: Style,
+    layerId: String,
+    imageId: String,
+    fillColor: Int,
+    centerLabel: String,
+    propertyName: String,
+    acceptedValues: List<String>,
+) {
+    if (style.getLayer(layerId) != null) {
+        return
+    }
+
+    style.addImage(
+        imageId,
+        createMapPinBitmap(
+            fillColor = fillColor,
+            centerColor = Color.WHITE,
+            selected = false,
+            centerLabel = centerLabel,
+        ),
+    )
+
+    val categoryExpressions = acceptedValues.map { value ->
+        Expression.eq(
+            Expression.get(propertyName),
+            Expression.literal(value),
+        )
+    }.toTypedArray()
+
+    val layer = SymbolLayer(
+        layerId,
+        RESULT_SOURCE_ID,
+    ).withProperties(
+        iconImage(imageId),
+        iconSize(0.62f),
+        iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+        iconAllowOverlap(true),
+        iconIgnorePlacement(true),
+    )
+
+    layer.setFilter(
+        Expression.all(
+            Expression.neq(
+                Expression.get("cluster"),
+                Expression.literal(true),
+            ),
+            Expression.any(*categoryExpressions),
+        ),
+    )
+
+    style.addLayer(layer)
 }
 
 private fun addOrUpdateRoute(
@@ -876,6 +1103,7 @@ private fun createMapPinBitmap(
     fillColor: Int,
     centerColor: Int,
     selected: Boolean,
+    centerLabel: String = "",
 ): Bitmap {
     val width = 96
     val height = 120
@@ -1016,10 +1244,34 @@ private fun createMapPinBitmap(
         if (selected) {
             13.0f
         } else {
-            11.0f
+            14.0f
         },
         centerPaint,
     )
+
+    if (centerLabel.isNotBlank()) {
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = fillColor
+            textAlign = Paint.Align.CENTER
+            textSize = if (centerLabel == "+") {
+                24.0f
+            } else {
+                20.0f
+            }
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        val baseline = centerY - (
+            labelPaint.ascent() + labelPaint.descent()
+        ) / 2.0f
+
+        canvas.drawText(
+            centerLabel,
+            centerX,
+            baseline,
+            labelPaint,
+        )
+    }
 
     return bitmap
 }
@@ -1212,6 +1464,60 @@ private fun centerMapOnRoute(
             120,
         ),
         850,
+    )
+}
+
+private fun centerMapOnGeoJsonBounds(
+    map: MapLibreMap,
+    geoJson: String,
+    topPadding: Int,
+    leftPadding: Int,
+    rightPadding: Int,
+    bottomPadding: Int,
+    animationDurationMs: Int,
+) {
+    val coordinates = extractCoordinates(geoJson)
+
+    if (coordinates.isEmpty()) {
+        return
+    }
+
+    if (coordinates.size == 1) {
+        map.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(
+                coordinates.first(),
+                17.0,
+            ),
+            animationDurationMs,
+        )
+        return
+    }
+
+    val boundsBuilder = LatLngBounds.Builder()
+
+    coordinates.forEach { coordinate ->
+        boundsBuilder.include(coordinate)
+    }
+
+    val bounds = runCatching {
+        boundsBuilder.build()
+    }.getOrNull() ?: return
+
+    /*
+     * DE: Unterschiedliche Innenabstände halten die Route oberhalb
+     *     des Bottom Sheets sichtbar.
+     * FR : Des marges asymétriques gardent l'itinéraire visible
+     *     au-dessus du panneau inférieur.
+     */
+    map.animateCamera(
+        CameraUpdateFactory.newLatLngBounds(
+            bounds,
+            leftPadding,
+            topPadding,
+            rightPadding,
+            bottomPadding,
+        ),
+        animationDurationMs,
     )
 }
 
