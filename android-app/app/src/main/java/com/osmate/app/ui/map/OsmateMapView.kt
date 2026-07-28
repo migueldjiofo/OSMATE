@@ -1,6 +1,10 @@
 package com.osmate.app.ui.map
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.os.Bundle
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
@@ -17,14 +21,23 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.iconAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.iconAnchor
+import org.maplibre.android.style.layers.PropertyFactory.iconIgnorePlacement
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
+import org.maplibre.android.style.layers.PropertyFactory.iconSize
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
@@ -32,16 +45,30 @@ import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.PropertyFactory.textAllowOverlap
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textSize
+import org.maplibre.android.style.sources.GeoJsonOptions
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.FeatureCollection
 
 private const val RESULT_SOURCE_ID = "osmate-search-results-source"
 private const val RESULT_CIRCLE_LAYER_ID = "osmate-search-results-circle-layer"
+private const val RESULT_CLUSTER_LAYER_ID = "osmate-search-results-cluster-layer"
+private const val RESULT_CLUSTER_COUNT_LAYER_ID = "osmate-search-results-cluster-count-layer"
 
 private const val SELECTED_SOURCE_ID = "osmate-selected-result-source"
 private const val SELECTED_CIRCLE_LAYER_ID = "osmate-selected-result-circle-layer"
+private const val SELECTED_HALO_LAYER_ID = "osmate-selected-result-halo-layer"
+
+private const val RESULT_MARKER_IMAGE_ID = "osmate-result-marker-image"
+private const val SELECTED_MARKER_IMAGE_ID = "osmate-selected-marker-image"
 
 private const val ROUTE_SOURCE_ID = "osmate-route-source"
+private const val ROUTE_CASING_LAYER_ID = "osmate-route-casing-layer"
 private const val ROUTE_LINE_LAYER_ID = "osmate-route-line-layer"
 
 private const val USER_SOURCE_ID = "osmate-user-location-source"
@@ -51,6 +78,34 @@ private const val EMPTY_FEATURE_COLLECTION = """{"type":"FeatureCollection","fea
 
 private val DEFAULT_LOCATION = LatLng(52.521918, 13.413215)
 
+enum class OsmateMapStyle {
+    Standard,
+    Humanitarian,
+}
+
+private val HUMANITARIAN_RASTER_STYLE = """
+{
+  "version": 8,
+  "sources": {
+    "humanitarian-raster": {
+      "type": "raster",
+      "tiles": [
+        "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "attribution": "OpenStreetMap contributors, Humanitarian OpenStreetMap Team"
+    }
+  },
+  "layers": [
+    {
+      "id": "humanitarian-raster-layer",
+      "type": "raster",
+      "source": "humanitarian-raster"
+    }
+  ]
+}
+""".trimIndent()
 private val OSM_RASTER_STYLE = """
 {
   "version": 8,
@@ -83,6 +138,10 @@ fun OsmateMapView(
     userLatitude: Double?,
     userLongitude: Double?,
     userLocationFocusRequest: Int,
+    mapStyle: OsmateMapStyle = OsmateMapStyle.Standard,
+    is3DEnabled: Boolean = false,
+    zoomRequest: Int = 0,
+    zoomDirection: Int = 0,
     onSelectedPointClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -100,6 +159,24 @@ fun OsmateMapView(
     val lastCenteredUserLocationFocusRequest = remember {
         mutableStateOf(-1)
     }
+
+    val lastAppliedMapStyle = remember {
+        mutableStateOf<OsmateMapStyle?>(null)
+    }
+
+    val lastApplied3DState = remember {
+        mutableStateOf<Boolean?>(null)
+    }
+
+    val lastAppliedZoomRequest = remember {
+        mutableStateOf(-1)
+    }
+
+    val currentGeoJson = rememberUpdatedState(geoJson)
+    val currentRouteGeoJson = rememberUpdatedState(routeGeoJson)
+    val currentUserLatitude = rememberUpdatedState(userLatitude)
+    val currentUserLongitude = rememberUpdatedState(userLongitude)
+    val currentMapStyle = rememberUpdatedState(mapStyle)
 
     val selectedPointClickHandler = rememberUpdatedState(onSelectedPointClick)
 
@@ -158,33 +235,21 @@ fun OsmateMapView(
                     }
                 }
 
-                map.setStyle(Style.Builder().fromJson(OSM_RASTER_STYLE)) { style ->
-                    addOrUpdateSearchResults(
-                        style = style,
-                        geoJson = EMPTY_FEATURE_COLLECTION,
-                    )
+                applyMapStyle(
+                    map = map,
+                    mapStyle = currentMapStyle.value,
+                    geoJson = currentGeoJson.value,
+                    routeGeoJson = currentRouteGeoJson.value,
+                    selectedLatitude = currentSelectedLatitude.value,
+                    selectedLongitude = currentSelectedLongitude.value,
+                    userLatitude = currentUserLatitude.value,
+                    userLongitude = currentUserLongitude.value,
+                )
 
-                    addOrUpdateRoute(
-                        style = style,
-                        geoJson = EMPTY_FEATURE_COLLECTION,
-                    )
-
-                    addOrUpdateSelectedResult(
-                        style = style,
-                        latitude = null,
-                        longitude = null,
-                    )
-
-                    addOrUpdateUserLocation(
-                        style = style,
-                        latitude = null,
-                        longitude = null,
-                    )
-
-                    moveToDefaultLocation(map)
-                    lastCenteredGeoJson.value = ""
-                    lastCenteredSelectedKey.value = null
-                }
+                moveToDefaultLocation(map)
+                lastCenteredGeoJson.value = ""
+                lastCenteredSelectedKey.value = null
+                lastAppliedMapStyle.value = currentMapStyle.value
             }
         }
     }
@@ -264,6 +329,22 @@ fun OsmateMapView(
         },
         update = { view ->
             view.getMapAsync { map ->
+                if (mapStyle != lastAppliedMapStyle.value) {
+                    applyMapStyle(
+                        map = map,
+                        mapStyle = mapStyle,
+                        geoJson = geoJson,
+                        routeGeoJson = routeGeoJson,
+                        selectedLatitude = selectedLatitude,
+                        selectedLongitude = selectedLongitude,
+                        userLatitude = userLatitude,
+                        userLongitude = userLongitude,
+                    )
+
+                    lastAppliedMapStyle.value = mapStyle
+                    return@getMapAsync
+                }
+
                 val style = map.style ?: return@getMapAsync
                 val normalizedGeoJson = geoJson.ifBlank {
                     EMPTY_FEATURE_COLLECTION
@@ -293,6 +374,28 @@ fun OsmateMapView(
                     longitude = userLongitude,
                 )
 
+                if (is3DEnabled != lastApplied3DState.value) {
+                    updateThreeDimensionalMode(
+                        map = map,
+                        enabled = is3DEnabled,
+                    )
+
+                    lastApplied3DState.value = is3DEnabled
+                }
+
+                if (
+                    zoomRequest != lastAppliedZoomRequest.value &&
+                    zoomRequest > 0 &&
+                    zoomDirection != 0
+                ) {
+                    updateZoom(
+                        map = map,
+                        zoomDirection = zoomDirection,
+                    )
+
+                    lastAppliedZoomRequest.value = zoomRequest
+                }
+
                 updateCameraIfNeeded(
                     map = map,
                     geoJson = geoJson,
@@ -321,6 +424,95 @@ fun OsmateMapView(
 }
 
 
+private fun applyMapStyle(
+    map: MapLibreMap,
+    mapStyle: OsmateMapStyle,
+    geoJson: String,
+    routeGeoJson: String,
+    selectedLatitude: Double?,
+    selectedLongitude: Double?,
+    userLatitude: Double?,
+    userLongitude: Double?,
+) {
+    val styleJson = when (mapStyle) {
+        OsmateMapStyle.Standard -> OSM_RASTER_STYLE
+        OsmateMapStyle.Humanitarian -> HUMANITARIAN_RASTER_STYLE
+    }
+
+    map.setStyle(
+        Style.Builder().fromJson(styleJson),
+    ) { style ->
+        addOrUpdateSearchResults(
+            style = style,
+            geoJson = geoJson.ifBlank {
+                EMPTY_FEATURE_COLLECTION
+            },
+        )
+
+        addOrUpdateRoute(
+            style = style,
+            geoJson = routeGeoJson.ifBlank {
+                EMPTY_FEATURE_COLLECTION
+            },
+        )
+
+        addOrUpdateSelectedResult(
+            style = style,
+            latitude = selectedLatitude,
+            longitude = selectedLongitude,
+        )
+
+        addOrUpdateUserLocation(
+            style = style,
+            latitude = userLatitude,
+            longitude = userLongitude,
+        )
+    }
+}
+
+private fun updateThreeDimensionalMode(
+    map: MapLibreMap,
+    enabled: Boolean,
+) {
+    val currentCamera = map.cameraPosition
+
+    val targetCamera = CameraPosition.Builder(currentCamera)
+        .tilt(
+            if (enabled) {
+                55.0
+            } else {
+                0.0
+            },
+        )
+        .build()
+
+    map.animateCamera(
+        CameraUpdateFactory.newCameraPosition(targetCamera),
+        700,
+    )
+}
+
+private fun updateZoom(
+    map: MapLibreMap,
+    zoomDirection: Int,
+) {
+    val currentCamera = map.cameraPosition
+
+    val targetZoom = if (zoomDirection > 0) {
+        currentCamera.zoom + 1.0
+    } else {
+        currentCamera.zoom - 1.0
+    }.coerceIn(2.0, 20.0)
+
+    val targetCamera = CameraPosition.Builder(currentCamera)
+        .zoom(targetZoom)
+        .build()
+
+    map.animateCamera(
+        CameraUpdateFactory.newCameraPosition(targetCamera),
+        350,
+    )
+}
 private fun isClickNearSelectedPoint(
     map: MapLibreMap,
     clickedLocation: LatLng,
@@ -437,28 +629,107 @@ private fun addOrUpdateSearchResults(
             GeoJsonSource(
                 RESULT_SOURCE_ID,
                 featureCollection,
+                GeoJsonOptions()
+                    .withCluster(true)
+                    .withClusterRadius(55)
+                    .withClusterMaxZoom(14)
+                    .withClusterMinPoints(2),
             ),
         )
     } else {
         source.setGeoJson(featureCollection)
     }
 
-    if (style.getLayer(RESULT_CIRCLE_LAYER_ID) == null) {
-        style.addLayer(
-            CircleLayer(
-                RESULT_CIRCLE_LAYER_ID,
-                RESULT_SOURCE_ID,
-            ).withProperties(
-                circleRadius(8.0f),
-                circleColor(Color.parseColor("#5267A3")),
-                circleStrokeColor(Color.WHITE),
-                circleStrokeWidth(2.0f),
-                circleOpacity(0.95f),
+    /*
+     * DE: Cluster-Kreise für mehrere nahe Ergebnisse.
+     * FR : Cercles représentant plusieurs résultats proches.
+     */
+    if (style.getLayer(RESULT_CLUSTER_LAYER_ID) == null) {
+        val clusterLayer = CircleLayer(
+            RESULT_CLUSTER_LAYER_ID,
+            RESULT_SOURCE_ID,
+        ).withProperties(
+            circleRadius(22.0f),
+            circleColor(Color.parseColor("#7C3AED")),
+            circleStrokeColor(Color.WHITE),
+            circleStrokeWidth(3.0f),
+            circleOpacity(0.95f),
+        )
+
+        clusterLayer.setFilter(
+            Expression.eq(
+                Expression.get("cluster"),
+                Expression.literal(true),
             ),
         )
+
+        style.addLayer(clusterLayer)
+    }
+
+    /*
+     * DE: Anzahl der Elemente innerhalb eines Clusters.
+     * FR : Nombre d'éléments contenus dans le cluster.
+     */
+    if (style.getLayer(RESULT_CLUSTER_COUNT_LAYER_ID) == null) {
+        val clusterCountLayer = SymbolLayer(
+            RESULT_CLUSTER_COUNT_LAYER_ID,
+            RESULT_SOURCE_ID,
+        ).withProperties(
+            textField(
+                Expression.get("point_count_abbreviated"),
+            ),
+            textSize(13.0f),
+            textColor(Color.WHITE),
+            textHaloColor(Color.parseColor("#5B21B6")),
+            textHaloWidth(0.8f),
+            textAllowOverlap(true),
+        )
+
+        clusterCountLayer.setFilter(
+            Expression.eq(
+                Expression.get("cluster"),
+                Expression.literal(true),
+            ),
+        )
+
+        style.addLayer(clusterCountLayer)
+    }
+
+    /*
+     * DE: Premium-Kartenmarker für einzelne Suchergebnisse.
+     * FR : Marqueurs cartographiques premium pour les résultats individuels.
+     */
+    if (style.getLayer(RESULT_CIRCLE_LAYER_ID) == null) {
+        style.addImage(
+            RESULT_MARKER_IMAGE_ID,
+            createMapPinBitmap(
+                fillColor = Color.parseColor("#5267A3"),
+                centerColor = Color.WHITE,
+                selected = false,
+            ),
+        )
+
+        val resultLayer = SymbolLayer(
+            RESULT_CIRCLE_LAYER_ID,
+            RESULT_SOURCE_ID,
+        ).withProperties(
+            iconImage(RESULT_MARKER_IMAGE_ID),
+            iconSize(0.58f),
+            iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+            iconAllowOverlap(true),
+            iconIgnorePlacement(true),
+        )
+
+        resultLayer.setFilter(
+            Expression.neq(
+                Expression.get("cluster"),
+                Expression.literal(true),
+            ),
+        )
+
+        style.addLayer(resultLayer)
     }
 }
-
 
 private fun addOrUpdateRoute(
     style: Style,
@@ -478,15 +749,36 @@ private fun addOrUpdateRoute(
         source.setGeoJson(featureCollection)
     }
 
+    /*
+     * DE: Weißer Außenrand für eine bessere Sichtbarkeit der Route.
+     * FR : Contour blanc pour améliorer la lisibilité de l’itinéraire.
+     */
+    if (style.getLayer(ROUTE_CASING_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(
+                ROUTE_CASING_LAYER_ID,
+                ROUTE_SOURCE_ID,
+            ).withProperties(
+                lineColor(Color.WHITE),
+                lineWidth(10.0f),
+                lineOpacity(0.92f),
+            ),
+        )
+    }
+
+    /*
+     * DE: Hauptlinie der Route im OSMATE-Violett.
+     * FR : Ligne principale de l’itinéraire en violet OSMATE.
+     */
     if (style.getLayer(ROUTE_LINE_LAYER_ID) == null) {
         style.addLayer(
             LineLayer(
                 ROUTE_LINE_LAYER_ID,
                 ROUTE_SOURCE_ID,
             ).withProperties(
-                lineColor(Color.parseColor("#1B8A5A")),
-                lineWidth(5.0f),
-                lineOpacity(0.85f),
+                lineColor(Color.parseColor("#7C3AED")),
+                lineWidth(6.0f),
+                lineOpacity(0.98f),
             ),
         )
     }
@@ -515,22 +807,205 @@ private fun addOrUpdateSelectedResult(
         source.setGeoJson(featureCollection)
     }
 
-    if (style.getLayer(SELECTED_CIRCLE_LAYER_ID) == null) {
+    /*
+     * DE: Halbtransparenter Halo rund um den ausgewählten Ort.
+     * FR : Halo semi-transparent autour du lieu sélectionné.
+     */
+    if (style.getLayer(SELECTED_HALO_LAYER_ID) == null) {
         style.addLayer(
             CircleLayer(
+                SELECTED_HALO_LAYER_ID,
+                SELECTED_SOURCE_ID,
+            ).withProperties(
+                circleRadius(28.0f),
+                circleColor(Color.parseColor("#33FF7A00")),
+                circleStrokeColor(Color.parseColor("#66FF7A00")),
+                circleStrokeWidth(2.0f),
+                circleOpacity(0.85f),
+            ),
+        )
+    }
+
+    /*
+     * DE: Größerer orangefarbener Premium-Marker für die Auswahl.
+     * FR : Marqueur premium orange agrandi pour le résultat sélectionné.
+     */
+    if (style.getLayer(SELECTED_CIRCLE_LAYER_ID) == null) {
+        style.addImage(
+            SELECTED_MARKER_IMAGE_ID,
+            createMapPinBitmap(
+                fillColor = Color.parseColor("#FF7A00"),
+                centerColor = Color.WHITE,
+                selected = true,
+            ),
+        )
+
+        style.addLayer(
+            SymbolLayer(
                 SELECTED_CIRCLE_LAYER_ID,
                 SELECTED_SOURCE_ID,
             ).withProperties(
-                circleRadius(14.0f),
-                circleColor(Color.parseColor("#FF7A00")),
-                circleStrokeColor(Color.WHITE),
-                circleStrokeWidth(4.0f),
-                circleOpacity(0.95f),
+                iconImage(SELECTED_MARKER_IMAGE_ID),
+                iconSize(0.72f),
+                iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                iconAllowOverlap(true),
+                iconIgnorePlacement(true),
             ),
         )
     }
 }
 
+private fun createMapPinBitmap(
+    fillColor: Int,
+    centerColor: Int,
+    selected: Boolean,
+): Bitmap {
+    val width = 96
+    val height = 120
+
+    val bitmap = Bitmap.createBitmap(
+        width,
+        height,
+        Bitmap.Config.ARGB_8888,
+    )
+
+    val canvas = Canvas(bitmap)
+
+    val centerX = width / 2.0f
+    val centerY = 43.0f
+    val radius = if (selected) {
+        34.0f
+    } else {
+        31.0f
+    }
+
+    val tailBottom = 112.0f
+    val tailHalfWidth = if (selected) {
+        17.0f
+    } else {
+        15.0f
+    }
+
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#55000000")
+        style = Paint.Style.FILL
+    }
+
+    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = fillColor
+        style = Paint.Style.FILL
+    }
+
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = if (selected) {
+            7.0f
+        } else {
+            6.0f
+        }
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    val centerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = centerColor
+        style = Paint.Style.FILL
+    }
+
+    fun createTailPath(
+        offsetX: Float = 0.0f,
+        offsetY: Float = 0.0f,
+    ): Path {
+        return Path().apply {
+            moveTo(
+                centerX - tailHalfWidth + offsetX,
+                centerY + radius * 0.55f + offsetY,
+            )
+
+            lineTo(
+                centerX + offsetX,
+                tailBottom + offsetY,
+            )
+
+            lineTo(
+                centerX + tailHalfWidth + offsetX,
+                centerY + radius * 0.55f + offsetY,
+            )
+
+            close()
+        }
+    }
+
+    /*
+     * DE: Leichter Schatten für räumliche Tiefe.
+     * FR : Ombre légère afin de donner du relief au marqueur.
+     */
+    canvas.drawCircle(
+        centerX + 3.0f,
+        centerY + 5.0f,
+        radius + 1.0f,
+        shadowPaint,
+    )
+
+    canvas.drawPath(
+        createTailPath(
+            offsetX = 3.0f,
+            offsetY = 5.0f,
+        ),
+        shadowPaint,
+    )
+
+    /*
+     * DE: Farbiger Hauptkörper des Markers.
+     * FR : Corps principal coloré du marqueur.
+     */
+    val tailPath = createTailPath()
+
+    canvas.drawPath(
+        tailPath,
+        fillPaint,
+    )
+
+    canvas.drawCircle(
+        centerX,
+        centerY,
+        radius,
+        fillPaint,
+    )
+
+    /*
+     * DE: Weißer Außenrand für bessere Sichtbarkeit.
+     * FR : Contour blanc pour une meilleure visibilité.
+     */
+    canvas.drawPath(
+        tailPath,
+        borderPaint,
+    )
+
+    canvas.drawCircle(
+        centerX,
+        centerY,
+        radius,
+        borderPaint,
+    )
+
+    /*
+     * DE: Weißes Zentrum als visuelle Markierung.
+     * FR : Centre blanc servant de repère visuel.
+     */
+    canvas.drawCircle(
+        centerX,
+        centerY,
+        if (selected) {
+            13.0f
+        } else {
+            11.0f
+        },
+        centerPaint,
+    )
+
+    return bitmap
+}
 private fun createSelectedPointGeoJson(
     latitude: Double?,
     longitude: Double?,
