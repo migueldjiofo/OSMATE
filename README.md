@@ -1,4 +1,4 @@
-# OSMATE
+﻿# OSMATE
 
 **OSMATE – Ein agentischer räumlicher Assistent für OpenStreetMap**
 
@@ -45,21 +45,29 @@ Das Backend basiert auf **FastAPI** und umfasst derzeit:
 
 Die Android-Anwendung enthält derzeit:
 
-- moderne Suchoberfläche
-- Kartenansicht mit MapLibre
-- OpenStreetMap-Kartenstile
-- Standard- und Humanitarian-Kartenstil
-- Ergebnisdarstellung auf der Karte
+- moderne Suchoberfläche mit Jetpack Compose
+- natürlichsprachliche räumliche Suche
+- Kartenansicht mit MapLibre Native
+- OpenStreetMap-Standardkartenstil
+- Humanitarian-Kartenstil
+- Darstellung von GeoJSON-Suchergebnissen
+- kategoriebasierte Premium-Marker für Cafés, Gastronomie, Gesundheit, Parkplätze, Verkehr, Parks und Geschäfte
 - Clusterbildung für nahe Suchergebnisse
-- Darstellung der Anzahl von Ergebnissen in Clustern
-- Premium-Kartenmarker für einzelne Suchergebnisse
-- hervorgehobenen ausgewählten Ort mit Halo
+- Anzeige der Ergebnisanzahl innerhalb von Clustern
+- interaktive Auswahl von Orten direkt über Kartenmarker
+- automatische Zuordnung eines angeklickten Markers zum passenden Suchergebnis
+- automatische Öffnung der Detailansicht nach einer Markerauswahl
+- hervorgehobener ausgewählter Ort mit orangem Marker und Halo
+- Zoom auf Kartencluster durch Antippen
 - Darstellung der aktuellen Nutzerposition
+- GPS-basierte Standortermittlung
+- Routenberechnung für Fußweg, Fahrrad und Auto
 - Routenvisualisierung mit kontrastreichem Außenrand
-- Zoom-Steuerung
+- intelligente Kameraanpassung an Suchergebnisse, ausgewählte Orte und Routen
+- manuelle Zoom-Steuerung
 - optionaler 3D-Kartenmodus
-- Bottom Sheet mit Ergebnis-, Routen- und Agentenansicht
-- automatische Zentrierung auf Suchergebnisse und ausgewählte Orte
+- Bottom Sheet mit den Bereichen Ergebnisse, Details, Route und Agent
+- kompakte, mittlere und erweiterte Bottom-Sheet-Darstellung
 
 ---
 
@@ -213,17 +221,23 @@ android-app\app\build\outputs\apk\debug\app-debug.apk
 
 ## Aktuelle Kartenfunktionen
 
-- Rasterkarten auf Basis von OpenStreetMap
+- Rasterkarten auf Grundlage von OpenStreetMap
 - alternativer Humanitarian-Kartenstil
 - GeoJSON-Suchergebnisse
+- kategoriebasierte Marker und Symbole
+- Premium-Marker für einzelne Suchergebnisse
 - Cluster für nahe Ergebnisse
 - Clusterzähler
-- Premium-Kartenmarker
+- interaktive Markerauswahl
+- automatische Öffnung der Detailansicht
+- Zoom auf angetippte Cluster
 - hervorgehobener ausgewählter Ort mit Halo
 - Nutzerstandort
-- Routenlinie mit weißem Außenrand
-- Kameraanimationen
-- automatische Zentrierung
+- Routenlinie mit kontrastreichem Außenrand
+- intelligente Kameraanimationen
+- automatisches Kamera-Fitting für Suchergebnisse
+- automatische Zentrierung auf ausgewählte Orte
+- automatische Anpassung der Kamera an vollständige Routen
 - Zoom-Steuerung
 - 3D-Neigung der Kamera
 
@@ -231,17 +245,18 @@ android-app\app\build\outputs\apk\debug\app-debug.apk
 
 ## Geplante Weiterentwicklung
 
-- kategoriebasierte Marker und Symbole
-- interaktive Ergebnis-Popups
-- intelligentes Kamera-Fitting
-- automatische Anpassung der Kamera an komplette Routen
-- optimierte Kartenanimationen
-- verbesserte Fehlerbehandlung bei Overpass-Ausfällen
-- GPS-basierte Navigation
-- Neuberechnung von Routen
-- Offline-Funktionalität
-- Erweiterung des agentischen Assistenten
-- Erweiterung der Tests
+- modernes Informations-Popup direkt über ausgewählten Orten
+- GPS-basierte Echtzeitnavigation
+- automatische Neuberechnung von Routen
+- optionale Sprachführung
+- verbesserte Fehlerbehandlung bei Ausfällen externer OpenStreetMap-Dienste
+- Offline-Karten und lokale Zwischenspeicherung
+- automatischer Tag- und Nachtmodus
+- Erweiterung der agentischen Entscheidungskette
+- optionaler hybrider Agentenmodus mit Large Language Model
+- Erweiterung der Android- und Backend-Tests
+- Continuous Integration mit GitHub Actions
+- technische Dokumentation und Projektdemonstration
 
 ---
 
@@ -283,3 +298,4 @@ Projekt im Rahmen des Moduls:
 Dieses Projekt wurde für akademische und demonstrative Zwecke entwickelt.
 
 OpenStreetMap-Daten unterliegen der Open Database License der OpenStreetMap Foundation.
+
