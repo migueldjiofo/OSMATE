@@ -24,7 +24,6 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
@@ -150,10 +149,6 @@ fun OsmateMapView(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val lastCenteredGeoJson = remember {
-        mutableStateOf<String?>(null)
-    }
-
-    val lastCenteredRouteGeoJson = remember {
         mutableStateOf<String?>(null)
     }
 
@@ -399,18 +394,6 @@ fun OsmateMapView(
                     )
 
                     lastAppliedZoomRequest.value = zoomRequest
-                }
-
-                if (
-                    routeGeoJson.isNotBlank() &&
-                    routeGeoJson != lastCenteredRouteGeoJson.value
-                ) {
-                    centerMapOnRoute(
-                        map = map,
-                        routeGeoJson = routeGeoJson,
-                    )
-
-                    lastCenteredRouteGeoJson.value = routeGeoJson
                 }
 
                 updateCameraIfNeeded(
@@ -1167,51 +1150,6 @@ private fun centerMapOnUserLocation(
             ),
             17.0,
         ),
-    )
-}
-
-private fun centerMapOnRoute(
-    map: MapLibreMap,
-    routeGeoJson: String,
-) {
-    val coordinates = extractCoordinates(routeGeoJson)
-
-    if (coordinates.isEmpty()) {
-        return
-    }
-
-    if (coordinates.size == 1) {
-        map.animateCamera(
-            CameraUpdateFactory.newLatLngZoom(
-                coordinates.first(),
-                17.0,
-            ),
-            700,
-        )
-
-        return
-    }
-
-    val boundsBuilder = LatLngBounds.Builder()
-
-    coordinates.forEach { coordinate ->
-        boundsBuilder.include(coordinate)
-    }
-
-    val bounds = runCatching {
-        boundsBuilder.build()
-    }.getOrNull() ?: return
-
-    /*
-     * DE: Die gesamte Route wird mit einem Kartenrand angezeigt.
-     * FR : L'intégralité de l'itinéraire est affichée avec une marge.
-     */
-    map.animateCamera(
-        CameraUpdateFactory.newLatLngBounds(
-            bounds,
-            120,
-        ),
-        850,
     )
 }
 
